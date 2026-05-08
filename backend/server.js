@@ -88,6 +88,26 @@ app.put('/todos/:id', (req, res) => {
 
 });
 
+app.delete('/todos/:id', (req, res) => {
+
+  const { id } = req.params;
+
+  db.run('DELETE FROM todos WHERE id = ?', [id], function(err) {
+
+    if (err) {
+
+      res.status(500).json({ error: err.message });
+
+      return;
+
+    }
+
+    res.json({ changes: this.changes });
+
+  });
+
+});
+
 app.listen(3000, () => {
 
   console.log('BeigeBoard backend running on port 3000');
