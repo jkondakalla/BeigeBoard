@@ -2,16 +2,21 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import './App.css';
 
-// ── Design tokens (from OpenCourseFlow "Editorial Paper") ─────────────
+// ── Design tokens ─────────────────────────────────────────────────────
 const T = {
-  paper:      '#F7F1E3',
+  paper:      '#F7F1E3',   // beige — backdrop only
   paperDark:  '#EFE7D2',
   ink:        '#1F1A14',
   ink2:       '#4A4135',
   rule:       '#D9CFB6',
   ruleSoft:   '#E5DCC4',
-  accent:     '#7A2E1A',
-  accentSoft: '#F1D9CB',
+  red:        '#C8391A',   // film red  — primary accent / urgency / CTAs
+  redSoft:    '#FAE9E5',
+  yellow:     '#D99800',   // Kodak yellow — numbers / data / highlights
+  yellowSoft: '#FDF5D4',
+  // aliased for existing references
+  accent:     '#C8391A',
+  accentSoft: '#FAE9E5',
 };
 
 const FONT_HEAD = "'Newsreader', 'EB Garamond', Georgia, serif";
@@ -26,25 +31,15 @@ function isoDate(d) {
   z.setHours(0, 0, 0, 0);
   return z.toISOString().slice(0, 10);
 }
-
-function localDate(iso) {
-  return new Date(iso + 'T00:00:00');
-}
-
-function fmtWeekday(iso) {
-  return localDate(iso).toLocaleDateString('en-US', { weekday: 'short' });
-}
-
-function fmtFull(iso) {
-  return localDate(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-}
+function localDate(iso) { return new Date(iso + 'T00:00:00'); }
+function fmtWeekday(iso) { return localDate(iso).toLocaleDateString('en-US', { weekday: 'short' }); }
+function fmtFull(iso)    { return localDate(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }); }
 
 // ── App ───────────────────────────────────────────────────────────────
 export default function App() {
-  const [todos, setTodos]   = useState([]);
-  const [view, setView]     = useState('today');
-  const [error, setError]   = useState(null);
-
+  const [todos, setTodos] = useState([]);
+  const [view,  setView]  = useState('today');
+  const [error, setError] = useState(null);
   const today = isoDate(new Date());
 
   const loadTodos = useCallback(async () => {
@@ -89,11 +84,11 @@ export default function App() {
       <AppHeader view={view} setView={setView} today={today} />
       {error && (
         <div style={{
-          background: '#2e0a0a', color: '#ff8a8a',
+          background: '#1a0806', color: T.red,
           fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.1em',
-          padding: '8px 40px',
+          padding: '8px 40px', borderBottom: `1px solid ${T.red}`,
         }}>
-          {error} — start the backend with <code>node server.js</code>
+          {error} — start the backend with <code style={{ fontFamily: 'monospace' }}>node server.js</code>
         </div>
       )}
       {view === 'today'    && <TodayView    todos={todos} ops={ops} setView={setView} />}
@@ -105,7 +100,7 @@ export default function App() {
 
 // ── Header ────────────────────────────────────────────────────────────
 function AppHeader({ view, setView, today }) {
-  const d = localDate(today);
+  const d    = localDate(today);
   const week = Math.ceil(((d - new Date(d.getFullYear(), 0, 1)) / 86400000) / 7);
 
   return (
@@ -119,15 +114,13 @@ function AppHeader({ view, setView, today }) {
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
           <span style={{
             fontFamily: FONT_HEAD, fontWeight: 600, fontStyle: 'italic',
-            fontSize: 22, color: T.ink, letterSpacing: '-0.01em',
+            fontSize: 22, color: T.yellow, letterSpacing: '-0.01em',
           }}>BeigeBoard</span>
           <span style={{ color: T.rule }}>·</span>
           <span style={{
             fontFamily: FONT_BODY, fontSize: 11,
             letterSpacing: '0.18em', textTransform: 'uppercase', color: T.ink2,
-          }}>
-            {d.getFullYear()} · W{week}
-          </span>
+          }}>{d.getFullYear()} · W{week}</span>
         </div>
         <nav style={{ display: 'flex' }}>
           {[['today', 'Today'], ['calendar', 'Calendar'], ['tasks', 'Tasks']].map(([k, label]) => (
@@ -136,7 +129,7 @@ function AppHeader({ view, setView, today }) {
               fontFamily: FONT_BODY, fontSize: 13,
               padding: '6px 16px',
               color: view === k ? T.ink : T.ink2,
-              borderBottom: `1.5px solid ${view === k ? T.accent : 'transparent'}`,
+              borderBottom: `1.5px solid ${view === k ? T.red : 'transparent'}`,
               cursor: 'pointer', letterSpacing: '0.02em',
             }}>{label}</button>
           ))}
@@ -149,15 +142,15 @@ function AppHeader({ view, setView, today }) {
 // ── Today View ────────────────────────────────────────────────────────
 function TodayView({ todos, ops, setView }) {
   const { today } = ops;
-  const d = localDate(today);
-  const dateStr = d.toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-  });
+  const [selectedDay, setSelectedDay] = useState(today);
 
-  const todayTasks  = todos.filter(t => t.due_date === today && !t.completed);
-  const overdue     = todos.filter(t => t.due_date && t.due_date < today && !t.completed);
-  const doneTasks   = todos.filter(t => t.completed);
-  const total       = todos.length;
+  const d       = localDate(today);
+  const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+  const todayTasks = todos.filter(t => t.due_date === today && !t.completed);
+  const overdue    = todos.filter(t => t.due_date && t.due_date < today && !t.completed);
+  const doneTasks  = todos.filter(t => t.completed);
+  const total      = todos.length;
 
   const statusLine = overdue.length > 0
     ? `${overdue.length} task${overdue.length > 1 ? 's are' : ' is'} overdue. The best time to clear the desk is now.`
@@ -178,21 +171,21 @@ function TodayView({ todos, ops, setView }) {
           fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 52,
           lineHeight: 1.02, margin: 0, letterSpacing: '-0.025em', color: T.ink,
         }}>
-          Today's <em style={{ fontStyle: 'italic', color: T.accent }}>work.</em>
+          Today's <em style={{ fontStyle: 'italic', color: T.red }}>work.</em>
         </h1>
       </div>
 
       {/* Status cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 24, marginBottom: 36 }}>
         <div style={{
-          background: overdue.length > 0 ? T.accentSoft : T.paperDark,
+          background: overdue.length > 0 ? T.redSoft : T.paperDark,
           border: `1px solid ${overdue.length > 0 ? '#D8A793' : T.rule}`,
           borderRadius: 2, padding: '20px 24px',
         }}>
           <div style={{
             fontFamily: FONT_BODY, fontSize: 10,
             letterSpacing: '0.22em', textTransform: 'uppercase',
-            color: T.accent, marginBottom: 6,
+            color: T.red, marginBottom: 6,
           }}>
             {overdue.length > 0 ? 'Needs attention' : "You're on track"}
           </div>
@@ -203,18 +196,14 @@ function TodayView({ todos, ops, setView }) {
           }}>{statusLine}</p>
         </div>
 
-        <div style={{
-          background: T.paper,
-          border: `1px solid ${T.rule}`,
-          borderRadius: 2, padding: '16px 20px',
-        }}>
+        <div style={{ background: T.paper, border: `1px solid ${T.rule}`, borderRadius: 2, padding: '16px 20px' }}>
           <div style={{
             fontFamily: FONT_BODY, fontSize: 10,
             letterSpacing: '0.22em', textTransform: 'uppercase', color: T.ink2, marginBottom: 4,
           }}>Overall progress</div>
           <div style={{
             fontFamily: FONT_NUM, fontSize: 40,
-            fontWeight: 500, color: T.ink, letterSpacing: '-0.02em', lineHeight: 1,
+            fontWeight: 500, color: T.yellow, letterSpacing: '-0.02em', lineHeight: 1,
           }}>
             {total === 0 ? '—' : `${Math.round((doneTasks.length / total) * 100)}%`}
           </div>
@@ -222,7 +211,7 @@ function TodayView({ todos, ops, setView }) {
             <div style={{
               position: 'absolute', top: 0, left: 0, bottom: 0,
               width: `${total ? (doneTasks.length / total) * 100 : 0}%`,
-              background: T.accent,
+              background: T.yellow,
             }} />
           </div>
           <div style={{
@@ -239,18 +228,15 @@ function TodayView({ todos, ops, setView }) {
         <div style={{ marginBottom: 32 }}>
           <h2 style={{
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 500,
-            fontSize: 24, margin: '0 0 12px', color: T.accent, letterSpacing: '-0.015em',
+            fontSize: 24, margin: '0 0 12px', color: T.red, letterSpacing: '-0.015em',
           }}>Overdue</h2>
-          <TaskQueue tasks={overdue} ops={ops} accentColor={T.accent} />
+          <TaskQueue tasks={overdue} ops={ops} accentColor={T.red} />
         </div>
       )}
 
       {/* Today's queue */}
       <div style={{ marginBottom: 36 }}>
-        <div style={{
-          display: 'flex', alignItems: 'baseline',
-          justifyContent: 'space-between', marginBottom: 14,
-        }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
           <h2 style={{
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 500,
             fontSize: 28, margin: 0, color: T.ink, letterSpacing: '-0.015em',
@@ -264,23 +250,26 @@ function TodayView({ todos, ops, setView }) {
 
         {todayTasks.length === 0 ? (
           <div style={{
-            padding: '28px 24px',
-            border: `1px dashed ${T.rule}`,
-            color: T.ink2, fontFamily: FONT_HEAD,
-            fontStyle: 'italic', fontSize: 16,
+            padding: '28px 24px', border: `1px dashed ${T.rule}`,
+            color: T.ink2, fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 16,
           }}>
             Nothing scheduled for today. Click a day in the Calendar to add tasks.
           </div>
         ) : (
-          <TaskQueue tasks={todayTasks} ops={ops} numbered />
+          <TaskQueue tasks={todayTasks} ops={ops} numbered accentColor={T.yellow} />
         )}
       </div>
 
-      {/* Hourly calendar */}
-      <DayCalendar todos={todos} ops={ops} />
+      {/* Hourly calendar — tracks selected week-strip day */}
+      <DayCalendar todos={todos} ops={ops} dayKey={selectedDay} />
 
-      {/* Week strip */}
-      <WeekStrip todos={todos} today={today} setView={setView} />
+      {/* Week strip — clicking selects the day above */}
+      <WeekStrip
+        todos={todos}
+        today={today}
+        selectedDay={selectedDay}
+        setSelectedDay={setSelectedDay}
+      />
     </div>
   );
 }
@@ -300,37 +289,15 @@ function TaskQueue({ tasks, ops, numbered, accentColor }) {
           {numbered ? (
             <span style={{
               fontFamily: FONT_NUM, fontSize: 28,
-              color: accentColor || T.ink2,
+              color: accentColor || T.yellow,
               fontStyle: 'italic', lineHeight: 1,
-            }}>
-              {String(i + 1).padStart(2, '0')}
-            </span>
+            }}>{String(i + 1).padStart(2, '0')}</span>
           ) : (
-            <button onClick={() => ops.toggle(task.id, task.completed)} style={{
-              width: 16, height: 16,
-              border: `1px solid ${task.completed ? T.accent : T.rule}`,
-              background: task.completed ? T.accent : 'transparent',
-              cursor: 'pointer', flexShrink: 0,
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              color: T.paper, fontSize: 10,
-            }}>
-              {task.completed ? '✓' : ''}
-            </button>
+            <Checkbox id={task.id} completed={task.completed} onToggle={ops.toggle} />
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {numbered && (
-              <button onClick={() => ops.toggle(task.id, task.completed)} style={{
-                width: 16, height: 16,
-                border: `1px solid ${task.completed ? T.accent : T.rule}`,
-                background: task.completed ? T.accent : 'transparent',
-                cursor: 'pointer', flexShrink: 0,
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                color: T.paper, fontSize: 10,
-              }}>
-                {task.completed ? '✓' : ''}
-              </button>
-            )}
+            {numbered && <Checkbox id={task.id} completed={task.completed} onToggle={ops.toggle} />}
             <span style={{
               fontFamily: FONT_HEAD, fontSize: 17,
               color: task.completed ? T.ink2 : T.ink,
@@ -340,8 +307,7 @@ function TaskQueue({ tasks, ops, numbered, accentColor }) {
           </div>
 
           <button onClick={() => ops.remove(task.id)} style={{
-            background: 'transparent',
-            border: `1px solid ${T.rule}`,
+            background: 'transparent', border: `1px solid ${T.rule}`,
             fontFamily: FONT_BODY, fontSize: 11,
             padding: '4px 10px', color: T.ink2, cursor: 'pointer',
           }}>Remove</button>
@@ -351,33 +317,51 @@ function TaskQueue({ tasks, ops, numbered, accentColor }) {
   );
 }
 
+function Checkbox({ id, completed, onToggle }) {
+  return (
+    <button onClick={() => onToggle(id, completed)} style={{
+      width: 16, height: 16,
+      border: `1px solid ${completed ? T.red : T.rule}`,
+      background: completed ? T.red : 'transparent',
+      cursor: 'pointer', flexShrink: 0,
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      color: T.paper, fontSize: 10,
+    }}>{completed ? '✓' : ''}</button>
+  );
+}
+
 // ── Day Calendar ──────────────────────────────────────────────────────
-function DayCalendar({ todos, ops }) {
-  const HOURS  = Array.from({ length: 17 }, (_, i) => i + 6); // 6 AM – 10 PM
-  const ROW_H  = 56;
+function DayCalendar({ todos, ops, dayKey }) {
+  const HOURS   = Array.from({ length: 17 }, (_, i) => i + 6); // 6 AM–10 PM
+  const ROW_H   = 56;
   const LABEL_W = 72;
 
   const [activeSlot, setActiveSlot] = useState(null);
   const [slotTitle,  setSlotTitle]  = useState('');
   const containerRef = useRef(null);
-  const { today } = ops;
 
-  const now            = new Date();
+  const effectiveDay = dayKey || ops.today;
+  const isViewingToday = effectiveDay === ops.today;
+
+  const now             = new Date();
   const currentHourFrac = now.getHours() + now.getMinutes() / 60;
-  const isToday        = isoDate(now) === today;
-  const nowTopPx       = isToday ? (currentHourFrac - HOURS[0]) * ROW_H : null;
+  const nowTopPx        = isViewingToday
+    ? (currentHourFrac - HOURS[0]) * ROW_H
+    : null;
 
-  // Scroll to 1 hour before current time on mount
   useEffect(() => {
-    if (containerRef.current && isToday) {
-      containerRef.current.scrollTop = Math.max(0, (currentHourFrac - HOURS[0] - 1) * ROW_H);
+    if (containerRef.current) {
+      const scrollTo = isViewingToday
+        ? Math.max(0, (currentHourFrac - HOURS[0] - 1) * ROW_H)
+        : 0;
+      containerRef.current.scrollTop = scrollTo;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [effectiveDay]);
 
-  const scheduledToday = todos.filter(t => t.due_date === today && t.scheduled_time);
+  const scheduledTasks = todos.filter(t => t.due_date === effectiveDay && t.scheduled_time);
   const byHour = {};
-  scheduledToday.forEach(t => {
+  scheduledTasks.forEach(t => {
     const h = parseInt(t.scheduled_time.slice(0, 2), 10);
     if (!byHour[h]) byHour[h] = [];
     byHour[h].push(t);
@@ -386,20 +370,33 @@ function DayCalendar({ todos, ops }) {
   const handleAdd = async (hour) => {
     if (!slotTitle.trim()) { setActiveSlot(null); return; }
     const time = `${String(hour).padStart(2, '0')}:00`;
-    await ops.add(slotTitle, today, time);
+    await ops.add(slotTitle, effectiveDay, time);
     setSlotTitle('');
     setActiveSlot(null);
   };
 
   const fmtHour = h => h === 12 ? '12 PM' : h < 12 ? `${h} AM` : `${h - 12} PM`;
 
+  const d       = localDate(effectiveDay);
+  const dayLabel = isViewingToday
+    ? 'Today'
+    : d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
   return (
     <div style={{ marginBottom: 36 }}>
       <div style={{
-        fontFamily: FONT_BODY, fontSize: 10,
-        letterSpacing: '0.22em', textTransform: 'uppercase',
-        color: T.ink2, marginBottom: 10,
-      }}>Schedule — Today</div>
+        display: 'flex', alignItems: 'baseline',
+        justifyContent: 'space-between', marginBottom: 10,
+      }}>
+        <div style={{
+          fontFamily: FONT_BODY, fontSize: 10,
+          letterSpacing: '0.22em', textTransform: 'uppercase', color: T.ink2,
+        }}>Schedule</div>
+        <div style={{
+          fontFamily: FONT_NUM, fontStyle: 'italic',
+          fontSize: 14, color: T.yellow,
+        }}>{dayLabel}</div>
+      </div>
 
       <div
         ref={containerRef}
@@ -414,13 +411,13 @@ function DayCalendar({ todos, ops }) {
           <div style={{
             position: 'absolute',
             top: nowTopPx, left: 0, right: 0,
-            height: 1, background: T.accent,
+            height: 1, background: T.red,
             zIndex: 10, pointerEvents: 'none',
           }}>
             <span style={{
               position: 'absolute', left: 6, top: -8,
               fontFamily: FONT_NUM, fontStyle: 'italic',
-              fontSize: 10, color: T.accent,
+              fontSize: 10, color: T.red,
               background: T.paper, padding: '0 3px',
             }}>
               {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
@@ -431,6 +428,7 @@ function DayCalendar({ todos, ops }) {
         {HOURS.map((h, i) => {
           const tasks    = byHour[h] || [];
           const isActive = activeSlot === h;
+          const isNowHour = isViewingToday && Math.floor(currentHourFrac) === h;
 
           return (
             <div key={h} style={{
@@ -444,7 +442,8 @@ function DayCalendar({ todos, ops }) {
                 padding: '8px 12px 0 0',
                 borderRight: `1px solid ${T.rule}`,
                 fontFamily: FONT_NUM, fontStyle: 'italic',
-                fontSize: 12, color: T.ink2,
+                fontSize: 12,
+                color: isNowHour ? T.yellow : T.ink2,
                 background: T.paper,
               }}>{fmtHour(h)}</div>
 
@@ -454,7 +453,7 @@ function DayCalendar({ todos, ops }) {
                   flex: 1, padding: '6px 10px',
                   display: 'flex', flexWrap: 'wrap',
                   alignContent: 'flex-start', gap: 4,
-                  background: isActive ? T.accentSoft : T.paper,
+                  background: isActive ? T.yellowSoft : isNowHour ? '#FFFDF5' : T.paper,
                   cursor: tasks.length === 0 && !isActive ? 'pointer' : 'default',
                 }}
                 onClick={() => {
@@ -467,7 +466,7 @@ function DayCalendar({ todos, ops }) {
                 {tasks.map(task => (
                   <div key={task.id} style={{
                     background: T.paperDark,
-                    borderLeft: `2px solid ${task.completed ? T.ink2 : T.accent}`,
+                    borderLeft: `2px solid ${task.completed ? T.ink2 : T.yellow}`,
                     padding: '3px 8px 3px 6px',
                     display: 'flex', alignItems: 'center', gap: 8,
                     fontFamily: FONT_BODY, fontSize: 11, color: T.ink,
@@ -477,8 +476,8 @@ function DayCalendar({ todos, ops }) {
                       onClick={e => { e.stopPropagation(); ops.toggle(task.id, task.completed); }}
                       style={{
                         width: 12, height: 12,
-                        border: `1px solid ${task.completed ? T.accent : T.rule}`,
-                        background: task.completed ? T.accent : 'transparent',
+                        border: `1px solid ${task.completed ? T.red : T.rule}`,
+                        background: task.completed ? T.red : 'transparent',
                         cursor: 'pointer', flexShrink: 0,
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         color: T.paper, fontSize: 8,
@@ -521,7 +520,7 @@ function DayCalendar({ todos, ops }) {
                       }}
                     />
                     <button onClick={() => handleAdd(h)} style={{
-                      background: T.ink, color: T.paper, border: 'none',
+                      background: T.red, color: T.paper, border: 'none',
                       fontFamily: FONT_BODY, fontSize: 10,
                       letterSpacing: '0.08em', textTransform: 'uppercase',
                       padding: '4px 12px', cursor: 'pointer',
@@ -537,8 +536,7 @@ function DayCalendar({ todos, ops }) {
                 {tasks.length === 0 && !isActive && (
                   <div style={{
                     fontFamily: FONT_HEAD, fontStyle: 'italic',
-                    fontSize: 12, color: T.ruleSoft,
-                    userSelect: 'none',
+                    fontSize: 12, color: T.ruleSoft, userSelect: 'none',
                   }}>+ add</div>
                 )}
               </div>
@@ -550,7 +548,8 @@ function DayCalendar({ todos, ops }) {
   );
 }
 
-function WeekStrip({ todos, today, setView }) {
+// ── Week Strip ────────────────────────────────────────────────────────
+function WeekStrip({ todos, today, selectedDay, setSelectedDay }) {
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = localDate(today);
     d.setDate(d.getDate() + i);
@@ -574,40 +573,48 @@ function WeekStrip({ todos, today, setView }) {
           const remaining = dayTodos.filter(t => !t.completed).length;
           const done      = dayTodos.filter(t => t.completed).length;
           const isToday   = dayKey === today;
+          const isSelected = dayKey === selectedDay;
           const d         = localDate(dayKey);
 
           return (
             <div
               key={dayKey}
-              onClick={() => setView('calendar')}
+              onClick={() => setSelectedDay(dayKey)}
               style={{
                 borderRight: `1px solid ${T.rule}`,
                 borderBottom: `1px solid ${T.rule}`,
                 padding: '10px 10px 12px',
-                background: isToday ? T.accentSoft : T.paper,
+                background: isSelected ? T.yellowSoft : isToday ? T.redSoft : T.paper,
                 minHeight: 80, cursor: 'pointer',
+                outline: isSelected ? `2px solid ${T.yellow}` : 'none',
+                outlineOffset: -2,
+                transition: 'background 0.12s',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{
                   fontFamily: FONT_BODY, fontSize: 10,
-                  letterSpacing: '0.14em', textTransform: 'uppercase', color: T.ink2,
+                  letterSpacing: '0.14em', textTransform: 'uppercase',
+                  color: isToday ? T.red : T.ink2,
                 }}>{fmtWeekday(dayKey)}</span>
                 <span style={{
                   fontFamily: FONT_NUM, fontSize: 18,
-                  color: isToday ? T.accent : T.ink,
-                  fontStyle: isToday ? 'italic' : 'normal',
+                  color: isSelected ? T.yellow : isToday ? T.red : T.ink,
+                  fontStyle: isToday || isSelected ? 'italic' : 'normal',
                 }}>{d.getDate()}</span>
               </div>
               {dayTodos.length === 0 ? (
-                <div style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12, color: T.ink2, marginTop: 8 }}>—</div>
+                <div style={{
+                  fontFamily: FONT_HEAD, fontStyle: 'italic',
+                  fontSize: 12, color: T.ink2, marginTop: 8,
+                }}>—</div>
               ) : (
                 <>
                   <div style={{ marginTop: 10, height: 2, background: T.ruleSoft }}>
                     <div style={{
                       height: '100%',
                       width: `${dayTodos.length ? (done / dayTodos.length) * 100 : 0}%`,
-                      background: isToday ? T.accent : T.ink2,
+                      background: isSelected ? T.yellow : isToday ? T.red : T.ink2,
                     }} />
                   </div>
                   <div style={{ fontFamily: FONT_NUM, fontSize: 13, marginTop: 5, color: T.ink }}>
@@ -623,34 +630,60 @@ function WeekStrip({ todos, today, setView }) {
   );
 }
 
-// ── Calendar View ─────────────────────────────────────────────────────
+// ── Calendar View — Monthly ───────────────────────────────────────────
 function CalendarView({ todos, ops }) {
   const { today } = ops;
-  const [focusDay, setFocusDay] = useState(today);
+  const todayDate = localDate(today);
 
-  // Start from Monday of the current week
-  const startOfWeek = (() => {
-    const d = localDate(today);
-    const dow = (d.getDay() + 6) % 7; // 0 = Mon
-    d.setDate(d.getDate() - dow);
-    return isoDate(d);
-  })();
+  const [year,     setYear]     = useState(todayDate.getFullYear());
+  const [month,    setMonth]    = useState(todayDate.getMonth());
+  const [focusDay, setFocusDay] = useState(null);
 
-  const days = Array.from({ length: 14 }, (_, i) => {
-    const d = localDate(startOfWeek);
-    d.setDate(d.getDate() + i);
-    return isoDate(d);
+  const prevMonth = () => {
+    if (month === 0) { setYear(y => y - 1); setMonth(11); }
+    else setMonth(m => m - 1);
+    setFocusDay(null);
+  };
+  const nextMonth = () => {
+    if (month === 11) { setYear(y => y + 1); setMonth(0); }
+    else setMonth(m => m + 1);
+    setFocusDay(null);
+  };
+  const goToday = () => {
+    setYear(todayDate.getFullYear());
+    setMonth(todayDate.getMonth());
+    setFocusDay(today);
+  };
+
+  const firstOfMonth = new Date(year, month, 1);
+  const daysInMonth  = new Date(year, month + 1, 0).getDate();
+  const startDow     = (firstOfMonth.getDay() + 6) % 7; // 0 = Mon
+  const totalCells   = Math.ceil((startDow + daysInMonth) / 7) * 7;
+
+  const cells = Array.from({ length: totalCells }, (_, i) => {
+    const dayNum = i - startDow + 1;
+    if (dayNum < 1 || dayNum > daysInMonth) return null;
+    return isoDate(new Date(year, month, dayNum));
   });
 
+  const monthLabel = firstOfMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const unscheduled = todos.filter(t => !t.due_date && !t.completed);
+  const totalRows   = cells.length / 7;
+
+  const btnStyle = {
+    background: 'transparent', border: `1px solid ${T.rule}`,
+    fontFamily: FONT_BODY, fontSize: 13,
+    padding: '5px 12px', color: T.ink, cursor: 'pointer',
+    letterSpacing: '0.02em',
+  };
 
   return (
-    <div style={{ padding: '28px 40px 64px', maxWidth: 1280, margin: '0 auto' }}>
+    <div style={{ padding: '28px 40px 64px', maxWidth: 1100, margin: '0 auto' }}>
 
       {/* Page header */}
       <div style={{
-        display: 'grid', gridTemplateColumns: '1fr auto',
-        gap: 24, alignItems: 'end',
+        display: 'flex', alignItems: 'flex-end',
+        justifyContent: 'space-between',
         marginBottom: 18, paddingBottom: 16,
         borderBottom: `1px solid ${T.rule}`,
       }}>
@@ -660,26 +693,22 @@ function CalendarView({ todos, ops }) {
             letterSpacing: '0.22em', textTransform: 'uppercase', color: T.ink2, marginBottom: 4,
           }}>The Calendar</div>
           <h1 style={{
-            fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 38,
-            margin: 0, color: T.ink, letterSpacing: '-0.02em',
+            fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 42,
+            margin: 0, letterSpacing: '-0.025em', lineHeight: 1.04,
           }}>
-            Two weeks <em style={{ color: T.accent }}>at a glance</em>
+            <em style={{ color: T.red, fontStyle: 'italic' }}>{monthLabel}</em>
           </h1>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{
-            fontFamily: FONT_BODY, fontSize: 9,
-            letterSpacing: '0.2em', textTransform: 'uppercase', color: T.ink2,
-          }}>Unscheduled</div>
-          <div style={{
-            fontFamily: FONT_NUM, fontStyle: 'italic',
-            fontSize: 32, color: T.accent, lineHeight: 1.05,
-          }}>{unscheduled.length}</div>
-          <div style={{ fontFamily: FONT_BODY, fontSize: 11, color: T.ink2 }}>without a date</div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button onClick={prevMonth} style={btnStyle}>←</button>
+          <button onClick={goToday} style={{ ...btnStyle, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            Today
+          </button>
+          <button onClick={nextMonth} style={btnStyle}>→</button>
         </div>
       </div>
 
-      {/* Grid */}
+      {/* Monthly grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', border: `1px solid ${T.rule}` }}>
 
         {/* DOW headers */}
@@ -695,7 +724,19 @@ function CalendarView({ todos, ops }) {
         ))}
 
         {/* Day cells */}
-        {days.map((dayKey, i) => {
+        {cells.map((dayKey, i) => {
+          const col = i % 7;
+          const row = Math.floor(i / 7);
+
+          if (!dayKey) return (
+            <div key={`pad-${i}`} style={{
+              minHeight: 110,
+              background: T.paperDark,
+              borderRight: col < 6 ? `1px solid ${T.rule}` : 'none',
+              borderBottom: row < totalRows - 1 ? `1px solid ${T.rule}` : 'none',
+            }} />
+          );
+
           const dayTodos  = todos.filter(t => t.due_date === dayKey);
           const remaining = dayTodos.filter(t => !t.completed);
           const isToday   = dayKey === today;
@@ -708,38 +749,34 @@ function CalendarView({ todos, ops }) {
               key={dayKey}
               onClick={() => setFocusDay(isFocus ? null : dayKey)}
               style={{
-                minHeight: 140,
-                background: isToday ? T.accentSoft : isPast ? T.paperDark : T.paper,
-                borderRight: i % 7 < 6 ? `1px solid ${T.rule}` : 'none',
-                borderBottom: i < 7 ? `1px solid ${T.rule}` : 'none',
-                padding: '8px 10px 28px',
+                minHeight: 110,
+                background: isToday ? T.yellowSoft : isPast ? T.paperDark : T.paper,
+                borderRight: col < 6 ? `1px solid ${T.rule}` : 'none',
+                borderBottom: row < totalRows - 1 ? `1px solid ${T.rule}` : 'none',
+                padding: '8px 10px 10px',
                 cursor: 'pointer',
-                outline: isFocus ? `2px solid ${T.accent}` : 'none',
+                outline: isFocus ? `2px solid ${T.red}` : 'none',
                 outlineOffset: -2,
                 position: 'relative',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <span style={{
-                  fontFamily: FONT_BODY, fontSize: 9,
-                  letterSpacing: '0.14em', textTransform: 'uppercase', color: T.ink2,
-                }}>{fmtWeekday(dayKey)}</span>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                {isToday ? (
+                  <span style={{
+                    fontFamily: FONT_BODY, fontSize: 8,
+                    letterSpacing: '0.18em', textTransform: 'uppercase', color: T.red,
+                    marginTop: 3,
+                  }}>today</span>
+                ) : <span />}
                 <span style={{
                   fontFamily: FONT_NUM, fontSize: 20,
-                  color: isToday ? T.accent : isPast ? T.ink2 : T.ink,
+                  color: isToday ? T.red : isPast ? T.ink2 : T.ink,
                   fontStyle: isToday ? 'italic' : 'normal',
+                  fontWeight: isToday ? 500 : 400,
                 }}>{d.getDate()}</span>
               </div>
 
-              {isToday && (
-                <div style={{
-                  fontFamily: FONT_BODY, fontSize: 8,
-                  letterSpacing: '0.18em', textTransform: 'uppercase',
-                  color: T.accent, marginTop: 1,
-                }}>today</div>
-              )}
-
-              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
                 {remaining.slice(0, 3).map(task => (
                   <div
                     key={task.id}
@@ -747,8 +784,8 @@ function CalendarView({ todos, ops }) {
                     title={task.title}
                     style={{
                       background: T.paperDark,
-                      borderLeft: `2px solid ${T.accent}`,
-                      padding: '3px 6px',
+                      borderLeft: `2px solid ${isPast ? T.red : T.yellow}`,
+                      padding: '2px 5px',
                       fontSize: 10, fontFamily: FONT_BODY, color: T.ink,
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       cursor: 'pointer',
@@ -764,21 +801,20 @@ function CalendarView({ todos, ops }) {
 
               {dayTodos.length > 0 && remaining.length === 0 && (
                 <div style={{
-                  position: 'absolute', bottom: 8, left: 10,
-                  fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11, color: T.ink2,
-                }}>all done ✓</div>
+                  position: 'absolute', bottom: 5, right: 8,
+                  fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 10, color: T.ink2,
+                }}>done ✓</div>
               )}
 
-              {/* Load bar */}
               {remaining.length > 0 && (
                 <div style={{
-                  position: 'absolute', left: 10, right: 10, bottom: 8,
+                  position: 'absolute', left: 10, right: 10, bottom: 7,
                   height: 2, background: T.ruleSoft,
                 }}>
                   <div style={{
                     height: '100%',
                     width: `${dayTodos.length ? ((dayTodos.length - remaining.length) / dayTodos.length) * 100 : 0}%`,
-                    background: isToday ? T.accent : T.ink2,
+                    background: isPast ? T.red : T.yellow,
                   }} />
                 </div>
               )}
@@ -788,9 +824,7 @@ function CalendarView({ todos, ops }) {
       </div>
 
       {/* Focus day panel */}
-      {focusDay && (
-        <DayPanel dayKey={focusDay} todos={todos} ops={ops} />
-      )}
+      {focusDay && <DayPanel dayKey={focusDay} todos={todos} ops={ops} />}
 
       {/* Unscheduled pile */}
       {unscheduled.length > 0 && (
@@ -812,7 +846,7 @@ function CalendarView({ todos, ops }) {
               <div key={task.id} style={{
                 background: T.paper,
                 border: `1px solid ${T.rule}`,
-                borderTop: `2px solid ${T.ink2}`,
+                borderTop: `2px solid ${T.yellow}`,
                 padding: '5px 10px',
                 fontFamily: FONT_BODY, fontSize: 12, color: T.ink,
               }}>{task.title}</div>
@@ -836,19 +870,16 @@ function DayPanel({ dayKey, todos, ops }) {
 
   return (
     <div style={{
-      marginTop: 20,
-      background: T.paperDark,
-      border: `1px solid ${T.rule}`,
-      padding: '20px 24px',
+      marginTop: 20, background: T.paperDark,
+      border: `1px solid ${T.rule}`, padding: '20px 24px',
     }}>
       <div style={{
         display: 'flex', alignItems: 'baseline',
         justifyContent: 'space-between', marginBottom: 16,
       }}>
-        <h3 style={{
-          fontFamily: FONT_HEAD, fontWeight: 500,
-          fontSize: 22, margin: 0, color: T.ink,
-        }}>{fmtFull(dayKey)}</h3>
+        <h3 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 22, margin: 0, color: T.ink }}>
+          {fmtFull(dayKey)}
+        </h3>
         <span style={{ fontFamily: FONT_BODY, fontSize: 11, color: T.ink2 }}>
           {dayTodos.filter(t => !t.completed).length} remaining
           · {dayTodos.filter(t => t.completed).length} done
@@ -856,26 +887,17 @@ function DayPanel({ dayKey, todos, ops }) {
       </div>
 
       {dayTodos.length === 0 ? (
-        <p style={{
-          fontFamily: FONT_HEAD, fontStyle: 'italic',
-          fontSize: 15, color: T.ink2, margin: '0 0 16px',
-        }}>No tasks yet for this day.</p>
+        <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 15, color: T.ink2, margin: '0 0 16px' }}>
+          No tasks yet for this day.
+        </p>
       ) : (
         <ol style={{ listStyle: 'none', padding: 0, margin: '0 0 16px' }}>
           {dayTodos.map(task => (
             <li key={task.id} style={{
               display: 'flex', alignItems: 'center', gap: 12,
-              padding: '9px 0',
-              borderBottom: `1px solid ${T.ruleSoft}`,
+              padding: '9px 0', borderBottom: `1px solid ${T.ruleSoft}`,
             }}>
-              <button onClick={() => ops.toggle(task.id, task.completed)} style={{
-                width: 15, height: 15,
-                border: `1px solid ${task.completed ? T.accent : T.rule}`,
-                background: task.completed ? T.accent : 'transparent',
-                cursor: 'pointer', flexShrink: 0,
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                color: T.paper, fontSize: 9,
-              }}>{task.completed ? '✓' : ''}</button>
+              <Checkbox id={task.id} completed={task.completed} onToggle={ops.toggle} />
               <span style={{
                 flex: 1, fontFamily: FONT_HEAD, fontSize: 16,
                 color: task.completed ? T.ink2 : T.ink,
@@ -883,8 +905,7 @@ function DayPanel({ dayKey, todos, ops }) {
               }}>{task.title}</span>
               <button onClick={() => ops.remove(task.id)} style={{
                 background: 'none', border: 'none',
-                color: T.ink2, fontFamily: FONT_BODY,
-                fontSize: 14, cursor: 'pointer', lineHeight: 1,
+                color: T.ink2, fontFamily: FONT_BODY, fontSize: 14, cursor: 'pointer', lineHeight: 1,
               }}>✕</button>
             </li>
           ))}
@@ -898,14 +919,13 @@ function DayPanel({ dayKey, todos, ops }) {
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
           placeholder="Add a task for this day…"
           style={{
-            flex: 1, background: T.paper,
-            border: `1px solid ${T.rule}`,
+            flex: 1, background: T.paper, border: `1px solid ${T.rule}`,
             fontFamily: FONT_BODY, fontSize: 13,
             padding: '8px 12px', color: T.ink, outline: 'none',
           }}
         />
         <button onClick={handleAdd} style={{
-          background: T.ink, color: T.paper, border: 'none',
+          background: T.red, color: T.paper, border: 'none',
           fontFamily: FONT_BODY, fontSize: 11,
           letterSpacing: '0.08em', textTransform: 'uppercase',
           padding: '8px 18px', cursor: 'pointer',
@@ -917,9 +937,9 @@ function DayPanel({ dayKey, todos, ops }) {
 
 // ── Tasks View ────────────────────────────────────────────────────────
 function TasksView({ todos, ops }) {
-  const [title, setTitle]     = useState('');
+  const [title,   setTitle]   = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [filter, setFilter]   = useState('all');
+  const [filter,  setFilter]  = useState('all');
 
   const handleAdd = async () => {
     await ops.add(title, dueDate);
@@ -933,7 +953,6 @@ function TasksView({ todos, ops }) {
     return true;
   });
 
-  // Group by due_date, nulls last
   const groups = {};
   filtered.forEach(t => {
     const key = t.due_date || '__none__';
@@ -949,30 +968,25 @@ function TasksView({ todos, ops }) {
   return (
     <div style={{ padding: '28px 40px 64px', maxWidth: 900, margin: '0 auto' }}>
 
-      {/* Page header */}
-      <div style={{
-        borderBottom: `1px solid ${T.rule}`,
-        paddingBottom: 18, marginBottom: 26,
-      }}>
+      <div style={{ borderBottom: `1px solid ${T.rule}`, paddingBottom: 18, marginBottom: 26 }}>
         <div style={{
           fontFamily: FONT_BODY, fontSize: 10,
           letterSpacing: '0.22em', textTransform: 'uppercase', color: T.ink2,
         }}>
-          All tasks · {todos.filter(t => !t.completed).length} remaining
+          All tasks · <span style={{ color: T.yellow }}>{todos.filter(t => !t.completed).length}</span> remaining
         </div>
         <h1 style={{
           fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 42,
           margin: '6px 0 0', color: T.ink, letterSpacing: '-0.025em', lineHeight: 1.04,
         }}>
-          The full <em style={{ color: T.accent }}>list.</em>
+          The full <em style={{ color: T.red }}>list.</em>
         </h1>
       </div>
 
       {/* Add form */}
       <div style={{
         display: 'flex', gap: 10, marginBottom: 28,
-        padding: '16px 20px',
-        background: T.paperDark, border: `1px solid ${T.rule}`,
+        padding: '16px 20px', background: T.paperDark, border: `1px solid ${T.rule}`,
       }}>
         <input
           value={title}
@@ -996,7 +1010,7 @@ function TasksView({ todos, ops }) {
           }}
         />
         <button onClick={handleAdd} style={{
-          background: T.ink, color: T.paper, border: 'none',
+          background: T.red, color: T.paper, border: 'none',
           fontFamily: FONT_BODY, fontSize: 11,
           letterSpacing: '0.08em', textTransform: 'uppercase',
           padding: '9px 20px', cursor: 'pointer',
@@ -1005,26 +1019,21 @@ function TasksView({ todos, ops }) {
 
       {/* Filter tabs */}
       <div style={{
-        display: 'flex',
-        borderTop: `1px solid ${T.rule}`,
-        borderBottom: `1px solid ${T.rule}`,
-        marginBottom: 24,
+        display: 'flex', borderTop: `1px solid ${T.rule}`,
+        borderBottom: `1px solid ${T.rule}`, marginBottom: 24,
       }}>
         {[['all', 'All'], ['active', 'Active'], ['done', 'Done']].map(([k, label]) => (
           <button key={k} onClick={() => setFilter(k)} style={{
-            background: filter === k ? T.accentSoft : 'transparent',
-            border: 'none',
-            borderRight: `1px solid ${T.rule}`,
+            background: filter === k ? T.yellowSoft : 'transparent',
+            border: 'none', borderRight: `1px solid ${T.rule}`,
             padding: '10px 22px',
-            fontFamily: FONT_BODY, fontSize: 12,
-            letterSpacing: '0.06em',
-            color: filter === k ? T.accent : T.ink2,
+            fontFamily: FONT_BODY, fontSize: 12, letterSpacing: '0.06em',
+            color: filter === k ? T.yellow : T.ink2,
             cursor: 'pointer',
           }}>{label}</button>
         ))}
       </div>
 
-      {/* Grouped list */}
       {sortedKeys.length === 0 && (
         <div style={{
           padding: '28px 24px', border: `1px dashed ${T.rule}`,
@@ -1035,8 +1044,8 @@ function TasksView({ todos, ops }) {
       )}
 
       {sortedKeys.map(groupKey => {
-        const isNone = groupKey === '__none__';
-        const isPast = !isNone && groupKey < ops.today;
+        const isNone  = groupKey === '__none__';
+        const isPast  = !isNone && groupKey < ops.today;
         const isToday = groupKey === ops.today;
 
         const groupLabel = isNone
@@ -1048,28 +1057,21 @@ function TasksView({ todos, ops }) {
             <div style={{
               fontFamily: FONT_BODY, fontSize: 10,
               letterSpacing: '0.22em', textTransform: 'uppercase',
-              color: isPast && !isNone ? T.accent : T.ink2,
+              color: isPast && !isNone ? T.red : T.ink2,
               paddingBottom: 8,
-              borderBottom: `1px solid ${isPast && !isNone ? T.accent : T.rule}`,
+              borderBottom: `1px solid ${isPast && !isNone ? T.red : T.rule}`,
             }}>{groupLabel}</div>
 
             <ol style={{ margin: 0, padding: 0, listStyle: 'none' }}>
               {groups[groupKey].map(task => (
                 <li key={task.id} style={{
                   display: 'grid',
-                  gridTemplateColumns: '20px 1fr 160px 60px',
+                  gridTemplateColumns: '20px 1fr 160px 50px',
                   alignItems: 'center', gap: 14,
                   padding: '10px 4px',
                   borderBottom: `1px solid ${T.ruleSoft}`,
                 }}>
-                  <button onClick={() => ops.toggle(task.id, task.completed)} style={{
-                    width: 15, height: 15,
-                    border: `1px solid ${task.completed ? T.accent : T.rule}`,
-                    background: task.completed ? T.accent : 'transparent',
-                    cursor: 'pointer',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    color: T.paper, fontSize: 9,
-                  }}>{task.completed ? '✓' : ''}</button>
+                  <Checkbox id={task.id} completed={task.completed} onToggle={ops.toggle} />
 
                   <span style={{
                     fontFamily: FONT_HEAD, fontSize: 17,
@@ -1082,8 +1084,7 @@ function TasksView({ todos, ops }) {
                     value={task.due_date || ''}
                     onChange={e => ops.setDueDate(task.id, e.target.value)}
                     style={{
-                      background: 'transparent',
-                      border: `1px solid ${T.rule}`,
+                      background: 'transparent', border: `1px solid ${T.rule}`,
                       fontFamily: FONT_BODY, fontSize: 11,
                       padding: '3px 6px', color: T.ink2, outline: 'none', width: '100%',
                     }}
@@ -1092,8 +1093,7 @@ function TasksView({ todos, ops }) {
                   <button onClick={() => ops.remove(task.id)} style={{
                     background: 'transparent', border: `1px solid ${T.rule}`,
                     fontFamily: FONT_BODY, fontSize: 11,
-                    padding: '4px 10px', color: T.ink, cursor: 'pointer',
-                    textAlign: 'center',
+                    padding: '4px 0', color: T.ink, cursor: 'pointer', textAlign: 'center',
                   }}>✕</button>
                 </li>
               ))}
