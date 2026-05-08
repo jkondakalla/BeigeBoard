@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import './App.css';
 
@@ -61,9 +61,13 @@ export default function App() {
 
   const ops = {
     today,
-    add: async (title, dueDate) => {
+    add: async (title, dueDate, scheduledTime) => {
       if (!title.trim()) return;
-      await axios.post(`${API}/todos`, { title: title.trim(), due_date: dueDate || null });
+      await axios.post(`${API}/todos`, {
+        title: title.trim(),
+        due_date: dueDate || null,
+        scheduled_time: scheduledTime || null,
+      });
       loadTodos();
     },
     toggle: async (id, completed) => {
@@ -272,6 +276,9 @@ function TodayView({ todos, ops, setView }) {
         )}
       </div>
 
+      {/* Hourly calendar */}
+      <DayCalendar todos={todos} ops={ops} />
+
       {/* Week strip */}
       <WeekStrip todos={todos} today={today} setView={setView} />
     </div>
@@ -341,6 +348,205 @@ function TaskQueue({ tasks, ops, numbered, accentColor }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+// ── Day Calendar ──────────────────────────────────────────────────────
+function DayCalendar({ todos, ops }) {
+  const HOURS  = Array.from({ length: 17 }, (_, i) => i + 6); // 6 AM – 10 PM
+  const ROW_H  = 56;
+  const LABEL_W = 72;
+
+  const [activeSlot, setActiveSlot] = useState(null);
+  const [slotTitle,  setSlotTitle]  = useState('');
+  const containerRef = useRef(null);
+  const { today } = ops;
+
+  const now            = new Date();
+  const currentHourFrac = now.getHours() + now.getMinutes() / 60;
+  const isToday        = isoDate(now) === today;
+  const nowTopPx       = isToday ? (currentHourFrac - HOURS[0]) * ROW_H : null;
+
+  // Scroll to 1 hour before current time on mount
+  useEffect(() => {
+    if (containerRef.current && isToday) {
+      containerRef.current.scrollTop = Math.max(0, (currentHourFrac - HOURS[0] - 1) * ROW_H);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const scheduledToday = todos.filter(t => t.due_date === today && t.scheduled_time);
+  const byHour = {};
+  scheduledToday.forEach(t => {
+    const h = parseInt(t.scheduled_time.slice(0, 2), 10);
+    if (!byHour[h]) byHour[h] = [];
+    byHour[h].push(t);
+  });
+
+  const handleAdd = async (hour) => {
+    if (!slotTitle.trim()) { setActiveSlot(null); return; }
+    const time = `${String(hour).padStart(2, '0')}:00`;
+    await ops.add(slotTitle, today, time);
+    setSlotTitle('');
+    setActiveSlot(null);
+  };
+
+  const fmtHour = h => h === 12 ? '12 PM' : h < 12 ? `${h} AM` : `${h - 12} PM`;
+
+  return (
+    <div style={{ marginBottom: 36 }}>
+      <div style={{
+        fontFamily: FONT_BODY, fontSize: 10,
+        letterSpacing: '0.22em', textTransform: 'uppercase',
+        color: T.ink2, marginBottom: 10,
+      }}>Schedule — Today</div>
+
+      <div
+        ref={containerRef}
+        style={{
+          height: 420, overflowY: 'auto',
+          border: `1px solid ${T.rule}`,
+          position: 'relative',
+        }}
+      >
+        {/* Now line */}
+        {nowTopPx !== null && nowTopPx >= 0 && nowTopPx <= HOURS.length * ROW_H && (
+          <div style={{
+            position: 'absolute',
+            top: nowTopPx, left: 0, right: 0,
+            height: 1, background: T.accent,
+            zIndex: 10, pointerEvents: 'none',
+          }}>
+            <span style={{
+              position: 'absolute', left: 6, top: -8,
+              fontFamily: FONT_NUM, fontStyle: 'italic',
+              fontSize: 10, color: T.accent,
+              background: T.paper, padding: '0 3px',
+            }}>
+              {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+            </span>
+          </div>
+        )}
+
+        {HOURS.map((h, i) => {
+          const tasks    = byHour[h] || [];
+          const isActive = activeSlot === h;
+
+          return (
+            <div key={h} style={{
+              display: 'flex', height: ROW_H,
+              borderBottom: i < HOURS.length - 1 ? `1px solid ${T.ruleSoft}` : 'none',
+            }}>
+              {/* Hour label */}
+              <div style={{
+                width: LABEL_W, flexShrink: 0,
+                display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end',
+                padding: '8px 12px 0 0',
+                borderRight: `1px solid ${T.rule}`,
+                fontFamily: FONT_NUM, fontStyle: 'italic',
+                fontSize: 12, color: T.ink2,
+                background: T.paper,
+              }}>{fmtHour(h)}</div>
+
+              {/* Slot */}
+              <div
+                style={{
+                  flex: 1, padding: '6px 10px',
+                  display: 'flex', flexWrap: 'wrap',
+                  alignContent: 'flex-start', gap: 4,
+                  background: isActive ? T.accentSoft : T.paper,
+                  cursor: tasks.length === 0 && !isActive ? 'pointer' : 'default',
+                }}
+                onClick={() => {
+                  if (tasks.length === 0 && !isActive) {
+                    setActiveSlot(h);
+                    setSlotTitle('');
+                  }
+                }}
+              >
+                {tasks.map(task => (
+                  <div key={task.id} style={{
+                    background: T.paperDark,
+                    borderLeft: `2px solid ${task.completed ? T.ink2 : T.accent}`,
+                    padding: '3px 8px 3px 6px',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    fontFamily: FONT_BODY, fontSize: 11, color: T.ink,
+                    maxWidth: '100%',
+                  }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); ops.toggle(task.id, task.completed); }}
+                      style={{
+                        width: 12, height: 12,
+                        border: `1px solid ${task.completed ? T.accent : T.rule}`,
+                        background: task.completed ? T.accent : 'transparent',
+                        cursor: 'pointer', flexShrink: 0,
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        color: T.paper, fontSize: 8,
+                      }}
+                    >{task.completed ? '✓' : ''}</button>
+                    <span style={{
+                      textDecoration: task.completed ? 'line-through' : 'none',
+                      color: task.completed ? T.ink2 : T.ink,
+                    }}>{task.title}</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); ops.remove(task.id); }}
+                      style={{
+                        background: 'none', border: 'none',
+                        color: T.ink2, fontSize: 11,
+                        cursor: 'pointer', marginLeft: 'auto', lineHeight: 1,
+                      }}
+                    >✕</button>
+                  </div>
+                ))}
+
+                {isActive && (
+                  <div
+                    style={{ display: 'flex', gap: 6, width: '100%' }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <input
+                      autoFocus
+                      value={slotTitle}
+                      onChange={e => setSlotTitle(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter')  handleAdd(h);
+                        if (e.key === 'Escape') setActiveSlot(null);
+                      }}
+                      placeholder={`Task at ${fmtHour(h)}…`}
+                      style={{
+                        flex: 1, background: T.paper,
+                        border: `1px solid ${T.rule}`,
+                        fontFamily: FONT_BODY, fontSize: 12,
+                        padding: '4px 8px', color: T.ink, outline: 'none',
+                      }}
+                    />
+                    <button onClick={() => handleAdd(h)} style={{
+                      background: T.ink, color: T.paper, border: 'none',
+                      fontFamily: FONT_BODY, fontSize: 10,
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      padding: '4px 12px', cursor: 'pointer',
+                    }}>Add</button>
+                    <button onClick={() => setActiveSlot(null)} style={{
+                      background: 'none', border: `1px solid ${T.rule}`,
+                      fontFamily: FONT_BODY, fontSize: 10,
+                      padding: '4px 8px', color: T.ink2, cursor: 'pointer',
+                    }}>✕</button>
+                  </div>
+                )}
+
+                {tasks.length === 0 && !isActive && (
+                  <div style={{
+                    fontFamily: FONT_HEAD, fontStyle: 'italic',
+                    fontSize: 12, color: T.ruleSoft,
+                    userSelect: 'none',
+                  }}>+ add</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

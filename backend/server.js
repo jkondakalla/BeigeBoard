@@ -13,11 +13,13 @@ db.run(`CREATE TABLE IF NOT EXISTS todos (
   title TEXT,
   completed BOOLEAN DEFAULT 0,
   due_date DATE,
+  scheduled_time TIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )`);
 
-// Migration: add due_date if upgrading from old schema
+// Migrations for schema upgrades
 db.run(`ALTER TABLE todos ADD COLUMN due_date DATE`, () => {});
+db.run(`ALTER TABLE todos ADD COLUMN scheduled_time TIME`, () => {});
 
 app.get('/todos', (req, res) => {
   db.all('SELECT * FROM todos ORDER BY due_date ASC, created_at ASC', [], (err, rows) => {
@@ -27,8 +29,8 @@ app.get('/todos', (req, res) => {
 });
 
 app.post('/todos', (req, res) => {
-  const { title, due_date } = req.body;
-  db.run('INSERT INTO todos (title, due_date) VALUES (?, ?)', [title, due_date || null], function(err) {
+  const { title, due_date, scheduled_time } = req.body;
+  db.run('INSERT INTO todos (title, due_date, scheduled_time) VALUES (?, ?, ?)', [title, due_date || null, scheduled_time || null], function(err) {
     if (err) { res.status(500).json({ error: err.message }); return; }
     res.json({ id: this.lastID });
   });
@@ -36,14 +38,15 @@ app.post('/todos', (req, res) => {
 
 app.put('/todos/:id', (req, res) => {
   const { id } = req.params;
-  const { completed, due_date, title } = req.body;
+  const { completed, due_date, scheduled_time, title } = req.body;
 
   const updates = [];
   const values = [];
 
-  if (completed !== undefined) { updates.push('completed = ?'); values.push(completed ? 1 : 0); }
-  if (due_date !== undefined)  { updates.push('due_date = ?');  values.push(due_date); }
-  if (title !== undefined)     { updates.push('title = ?');     values.push(title); }
+  if (completed !== undefined)      { updates.push('completed = ?');      values.push(completed ? 1 : 0); }
+  if (due_date !== undefined)       { updates.push('due_date = ?');       values.push(due_date); }
+  if (scheduled_time !== undefined) { updates.push('scheduled_time = ?'); values.push(scheduled_time); }
+  if (title !== undefined)          { updates.push('title = ?');          values.push(title); }
 
   if (updates.length === 0) {
     return res.status(400).json({ error: 'No fields to update' });
