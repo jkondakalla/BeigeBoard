@@ -7,6 +7,7 @@
 	<!--
 	Ensure that the previous step has been marked as completed.
 	Call project setup tool with projectType parameter.
+  
 	Run scaffolding command to create project files and folders.
 	Use '.' as the working directory.
 	If no appropriate projectType is available, search documentation using available tools.
