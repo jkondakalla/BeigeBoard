@@ -126,18 +126,24 @@ export function DayCalendar({ todos, ops, dayKey }) {
   const T = useT();
   const [activeSlot, setActiveSlot] = useState(null);
   const [slotTitle,  setSlotTitle]  = useState('');
+  const [nowTime,    setNowTime]    = useState(() => new Date());
   const containerRef = useRef(null);
 
   const effectiveDay   = dayKey || ops.today;
   const isViewingToday = effectiveDay === ops.today;
-  const now            = new Date();
-  const curHourFrac    = now.getHours() + now.getMinutes() / 60;
-  const nowTopPx       = isViewingToday ? (curHourFrac - FIRST_H) * ROW_H : null;
+  const nowFrac        = nowTime.getHours() + nowTime.getMinutes() / 60;
+  const nowTopPx       = isViewingToday ? (nowFrac - FIRST_H) * ROW_H : null;
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTime(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (containerRef.current) {
+      const frac = nowTime.getHours() + nowTime.getMinutes() / 60;
       containerRef.current.scrollTop = isViewingToday
-        ? Math.max(0, (curHourFrac - FIRST_H - 1) * ROW_H)
+        ? Math.max(0, (frac - FIRST_H - 1) * ROW_H)
         : 0;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -177,7 +183,7 @@ export function DayCalendar({ todos, ops, dayKey }) {
 
           {/* Hour grid */}
           {HOURS.map((h, i) => {
-            const isNowHour = isViewingToday && Math.floor(curHourFrac) === h;
+            const isNowHour = isViewingToday && Math.floor(nowFrac) === h;
             const isActive  = activeSlot === h;
             return (
               <div
@@ -217,7 +223,7 @@ export function DayCalendar({ todos, ops, dayKey }) {
                   onClick={() => { if (!isActive) { setActiveSlot(h); setSlotTitle(''); } }}
                 >
                   {!isActive && (
-                    <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11, color: T.ruleSoft, userSelect: 'none' }}>
+                    <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11, color: T.ink2, userSelect: 'none', opacity: 0.45 }}>
                       + add
                     </span>
                   )}
@@ -250,8 +256,9 @@ export function DayCalendar({ todos, ops, dayKey }) {
           {/* Now line */}
           {nowTopPx !== null && nowTopPx >= 0 && nowTopPx <= totalH && (
             <div style={{ position: 'absolute', top: nowTopPx, left: 0, right: 0, height: 1, background: T.red, zIndex: 10, pointerEvents: 'none' }}>
+              <div className="now-dot" style={{ position: 'absolute', left: LABEL_W - 4, top: -3, width: 7, height: 7, borderRadius: '50%', background: T.red }} />
               <span style={{ position: 'absolute', right: 10, top: 0, transform: 'translateY(-50%)', fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 10, color: T.red, background: T.paper, padding: '0 3px' }}>
-                {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                {nowTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
               </span>
             </div>
           )}

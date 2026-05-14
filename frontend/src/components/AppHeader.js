@@ -6,7 +6,7 @@ export const VIEW_LABELS = { today: 'Today', calendar: 'Calendar', tasks: 'Tasks
 export function AppHeader({ view, today }) {
   const T = useT();
   const d    = localDate(today);
-  const week = Math.ceil(((d - new Date(d.getFullYear(), 0, 1)) / 86400000) / 7);
+  const week = Math.ceil(((d - new Date(d.getFullYear(), 0, 0)) / 86400000) / 7);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {

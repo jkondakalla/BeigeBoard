@@ -92,8 +92,10 @@ export function TodayView({ todos, ops, setView }) {
         )}
       </div>
 
+      <div style={{ marginBottom: 28 }}>
+        <WeekStrip todos={todos} today={today} selectedDay={selectedDay} setSelectedDay={setSelectedDay} />
+      </div>
       <DayCalendar todos={todos} ops={ops} dayKey={selectedDay} />
-      <WeekStrip todos={todos} today={today} selectedDay={selectedDay} setSelectedDay={setSelectedDay} />
     </div>
   );
 }

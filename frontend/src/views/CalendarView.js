@@ -137,7 +137,13 @@ export function CalendarView({ todos, ops }) {
                       title={task.title}
                       style={{
                         background: chipColor || T.paperDark,
-                        borderLeft: chipColor ? 'none' : `2px solid ${T.red}`,
+                        border: chipColor
+                          ? '1px solid rgba(255,255,255,0.2)'
+                          : `1px solid ${T.rule}`,
+                        borderLeft: chipColor
+                          ? '1px solid rgba(255,255,255,0.2)'
+                          : `2px solid ${T.red}`,
+                        borderRadius: 3,
                         padding: '2px 5px', fontSize: 10, fontFamily: FONT_BODY,
                         color: chipColor ? 'rgba(255,255,255,0.88)' : T.ink,
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',

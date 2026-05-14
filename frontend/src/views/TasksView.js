@@ -95,7 +95,7 @@ function TaskRow({ task, allTodos, ops, level }) {
             <button
               onClick={e => { e.stopPropagation(); setShowColors(v => !v); }}
               title="Set color"
-              style={{ width: 10, height: 10, borderRadius: '50%', background: accent || 'transparent', border: `1.5px solid ${accent || T.rule}`, cursor: 'pointer', padding: 0 }}
+              style={{ width: 10, height: 10, borderRadius: '50%', background: accent || 'transparent', border: accent ? '1.5px solid rgba(255,255,255,0.55)' : `1.5px solid ${T.rule}`, cursor: 'pointer', padding: 0 }}
             />
             {showColors && (
               <ColorPicker taskId={task.id} current={task.color} ops={ops} onClose={() => setShowColors(false)} />

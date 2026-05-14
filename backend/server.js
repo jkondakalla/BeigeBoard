@@ -74,7 +74,14 @@ app.put('/todos/:id', (req, res) => {
 
 app.delete('/todos/:id', (req, res) => {
   const { id } = req.params;
-  db.run('DELETE FROM todos WHERE id = ?', [id], function(err) {
+  db.run(`
+    WITH RECURSIVE tree(id) AS (
+      SELECT id FROM todos WHERE id = ?
+      UNION ALL
+      SELECT t.id FROM todos t JOIN tree tr ON t.parent_id = tr.id
+    )
+    DELETE FROM todos WHERE id IN (SELECT id FROM tree)
+  `, [id], function(err) {
     if (err) { res.status(500).json({ error: err.message }); return; }
     res.json({ changes: this.changes });
   });
