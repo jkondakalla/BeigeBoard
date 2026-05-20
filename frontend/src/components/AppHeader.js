@@ -29,6 +29,7 @@ export function AppHeader({ view, today }) {
           <span style={{
             fontFamily: FONT_HEAD, fontWeight: 600, fontStyle: 'italic',
             fontSize: 22, color: T.yellow, letterSpacing: '-0.01em',
+            textShadow: `0 0 18px ${T.yellow}55, 0 0 40px ${T.yellow}20`,
           }}>BeigeBoard</span>
           <span style={{ color: T.rule }}>·</span>
           <span style={{

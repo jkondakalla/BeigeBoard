@@ -58,7 +58,7 @@ export function CalendarView({ todos, ops }) {
         <div>
           <div style={{ fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.ink2, marginBottom: 4 }}>The Calendar</div>
           <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 42, margin: 0, letterSpacing: '-0.025em', lineHeight: 1.04 }}>
-            <em style={{ color: T.red, fontStyle: 'italic' }}>{monthLabel}</em>
+            <em style={{ color: T.red, fontStyle: 'italic', textShadow: `0 0 24px ${T.red}33` }}>{monthLabel}</em>
           </h1>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -149,6 +149,7 @@ export function CalendarView({ todos, ops }) {
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                         cursor: 'grab',
                         opacity: dragTask?.id === task.id ? 0.4 : 1,
+                        boxShadow: chipColor ? `0 1px 8px ${chipColor}55` : 'none',
                       }}
                     >{task.title}</div>
                   );

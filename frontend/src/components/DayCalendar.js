@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useT, FONT_HEAD, FONT_BODY, FONT_NUM, localDate, fmtTime, TASK_COLORS } from '../theme';
 import { Checkbox } from './Checkbox';
+import { TimeField } from './TimeField';
 
 const ROW_H   = 56;
 const LABEL_W = 72;
@@ -25,9 +26,9 @@ function TaskBlock({ task, ops }) {
   const liveRef  = useRef(null);
   const dragRef  = useRef({ active: false });
 
-  const chipColor  = task.color ? TASK_COLORS.find(c => c.id === task.color)?.hex : null;
-  const startFrac  = timeToFrac(task.scheduled_time);
-  const storedEnd  = task.scheduled_end ? timeToFrac(task.scheduled_end) : startFrac + 1;
+  const chipColor = task.color ? TASK_COLORS.find(c => c.id === task.color)?.hex : null;
+  const startFrac = timeToFrac(task.scheduled_time);
+  const storedEnd = task.scheduled_end ? timeToFrac(task.scheduled_end) : startFrac + 1;
   const effectiveEnd = liveEnd !== null ? liveEnd : storedEnd;
 
   const top    = (startFrac - FIRST_H) * ROW_H;
@@ -45,7 +46,7 @@ function TaskBlock({ task, ops }) {
 
     const onMove = ev => {
       const dy      = ev.clientY - startY;
-      const snapped = Math.round((base + dy / ROW_H) * 4) / 4; // 15-min snap
+      const snapped = Math.round((base + dy / ROW_H) * 4) / 4;
       const clamped = Math.max(startFrac + 0.25, Math.min(LAST_H + 1, snapped));
       liveRef.current = clamped;
       setLiveEnd(clamped);
@@ -67,21 +68,22 @@ function TaskBlock({ task, ops }) {
   const bg      = chipColor || T.red;
   const textCol = 'rgba(255,255,255,0.9)';
   const dimCol  = 'rgba(255,255,255,0.55)';
-
-  const endFrac   = liveEnd !== null ? liveEnd : (task.scheduled_end ? storedEnd : null);
-  const endLabel  = endFrac !== null ? fmtTime(fracToTime(endFrac)) : null;
+  const endFrac = liveEnd !== null ? liveEnd : (task.scheduled_end ? storedEnd : null);
+  const endLabel = endFrac !== null ? fmtTime(fracToTime(endFrac)) : null;
 
   return (
     <div
       style={{
         position: 'absolute',
-        left: 4, right: 4,
+        // Left offset includes LABEL_W since this is now directly in the container
+        left: LABEL_W + 4, right: 4,
         top, height,
         background: bg,
         borderTop: `2px solid rgba(255,255,255,0.25)`,
         overflow: 'hidden',
         zIndex: 3,
         boxSizing: 'border-box',
+        boxShadow: `0 2px 20px ${bg}44, inset 0 1px 0 rgba(255,255,255,0.15)`,
       }}
     >
       <div style={{ padding: '4px 8px 14px', height: '100%', boxSizing: 'border-box' }}>
@@ -94,6 +96,9 @@ function TaskBlock({ task, ops }) {
           }}>
             {task.title}
           </span>
+          {height >= 44 && (
+            <TimeField taskId={task.id} time={task.scheduled_time} endTime={task.scheduled_end} dueDate={task.due_date} ops={ops} />
+          )}
           <button
             onClick={e => { e.stopPropagation(); ops.remove(task.id); }}
             style={{ background: 'none', border: 'none', color: dimCol, fontSize: 10, cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}
@@ -107,7 +112,6 @@ function TaskBlock({ task, ops }) {
         )}
       </div>
 
-      {/* Resize handle */}
       <div
         onMouseDown={onResizeDown}
         style={{
@@ -124,9 +128,10 @@ function TaskBlock({ task, ops }) {
 
 export function DayCalendar({ todos, ops, dayKey }) {
   const T = useT();
-  const [activeSlot, setActiveSlot] = useState(null);
-  const [slotTitle,  setSlotTitle]  = useState('');
-  const [nowTime,    setNowTime]    = useState(() => new Date());
+  const [activeSlot,  setActiveSlot]  = useState(null);
+  const [slotTitle,   setSlotTitle]   = useState('');
+  const [hoveredSlot, setHoveredSlot] = useState(null);
+  const [nowTime,     setNowTime]     = useState(() => new Date());
   const containerRef = useRef(null);
 
   const effectiveDay   = dayKey || ops.today;
@@ -154,14 +159,12 @@ export function DayCalendar({ todos, ops, dayKey }) {
   const handleAdd = async hour => {
     if (!slotTitle.trim()) { setActiveSlot(null); return; }
     const startTime = `${String(hour).padStart(2, '0')}:00`;
-    const endHour   = Math.min(hour + 1, LAST_H);
-    const endTime   = `${String(endHour).padStart(2, '0')}:00`;
+    const endTime   = `${String(Math.min(hour + 1, LAST_H)).padStart(2, '0')}:00`;
     await ops.add(slotTitle, effectiveDay, startTime, null, endTime);
     setSlotTitle(''); setActiveSlot(null);
   };
 
   const totalH = HOURS.length * ROW_H;
-
   const d = localDate(effectiveDay);
   const dayLabel = isViewingToday
     ? 'Today'
@@ -178,13 +181,14 @@ export function DayCalendar({ todos, ops, dayKey }) {
         </div>
       </div>
 
-      <div ref={containerRef} style={{ height: 420, overflowY: 'auto', border: `1px solid ${T.rule}`, position: 'relative' }}>
+      <div ref={containerRef} className="day-cal-scroll" style={{ height: 420, overflowY: 'auto', border: `1px solid ${T.rule}`, position: 'relative' }}>
         <div style={{ position: 'relative', height: totalH }}>
 
-          {/* Hour grid */}
+          {/* Hour grid — slot rows receive all pointer events */}
           {HOURS.map((h, i) => {
             const isNowHour = isViewingToday && Math.floor(nowFrac) === h;
             const isActive  = activeSlot === h;
+            const isHovered = hoveredSlot === h;
             return (
               <div
                 key={h}
@@ -209,9 +213,11 @@ export function DayCalendar({ todos, ops, dayKey }) {
                   {fmtHour(h)}
                 </div>
 
-                {/* Clickable slot — behind task blocks */}
+                {/* Slot row */}
                 <div
                   className="slot-row"
+                  onMouseEnter={() => { if (!isActive) setHoveredSlot(h); }}
+                  onMouseLeave={() => setHoveredSlot(null)}
                   style={{
                     flex: 1,
                     background: isActive ? T.redSoft : T.paper,
@@ -222,11 +228,18 @@ export function DayCalendar({ todos, ops, dayKey }) {
                   }}
                   onClick={() => { if (!isActive) { setActiveSlot(h); setSlotTitle(''); } }}
                 >
-                  {!isActive && (
-                    <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11, color: T.ink2, userSelect: 'none', opacity: 0.45 }}>
+                  {/* + add — hover-only, glows red */}
+                  {!isActive && isHovered && (
+                    <span style={{
+                      fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
+                      color: T.red, userSelect: 'none',
+                      textShadow: `0 0 10px ${T.red}88`,
+                      transition: 'opacity 0.1s',
+                    }}>
                       + add
                     </span>
                   )}
+
                   {isActive && (
                     <div style={{ display: 'flex', gap: 6, width: '100%' }} onClick={e => e.stopPropagation()}>
                       <input
@@ -246,16 +259,15 @@ export function DayCalendar({ todos, ops, dayKey }) {
             );
           })}
 
-          {/* Task blocks — float above the grid */}
-          <div style={{ position: 'absolute', top: 0, left: LABEL_W, right: 0, height: totalH, zIndex: 2 }}>
-            {scheduledTasks.map(task => (
-              <TaskBlock key={task.id} task={task} ops={ops} />
-            ))}
-          </div>
+          {/* Task blocks — rendered directly (no wrapper) so they only intercept
+              events in their own footprint; empty slot areas remain clickable */}
+          {scheduledTasks.map(task => (
+            <TaskBlock key={task.id} task={task} ops={ops} />
+          ))}
 
           {/* Now line */}
           {nowTopPx !== null && nowTopPx >= 0 && nowTopPx <= totalH && (
-            <div style={{ position: 'absolute', top: nowTopPx, left: 0, right: 0, height: 1, background: T.red, zIndex: 10, pointerEvents: 'none' }}>
+            <div style={{ position: 'absolute', top: nowTopPx, left: 0, right: 0, height: 1, background: T.red, zIndex: 10, pointerEvents: 'none', boxShadow: `0 0 8px ${T.red}` }}>
               <div className="now-dot" style={{ position: 'absolute', left: LABEL_W - 4, top: -3, width: 7, height: 7, borderRadius: '50%', background: T.red }} />
               <span style={{ position: 'absolute', right: 10, top: 0, transform: 'translateY(-50%)', fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 10, color: T.red, background: T.paper, padding: '0 3px' }}>
                 {nowTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}

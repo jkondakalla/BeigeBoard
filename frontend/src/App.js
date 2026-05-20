@@ -3,7 +3,7 @@ import axios from 'axios';
 import './App.css';
 
 import { ThemeCtx, LIGHT, DARK, isoDate, API } from './theme';
-import { Halation, FilmGrain, Artifacts, ScanLines, FilmStripNav, DarkModeToggle, CinematicIntro } from './overlays';
+import { Halation, FilmGrain, Artifacts, ScanLines, Vignette, FilmStripNav, DarkModeToggle, CinematicIntro } from './overlays';
 import { AppHeader } from './components/AppHeader';
 import { TodayView } from './views/TodayView';
 import { CalendarView } from './views/CalendarView';
@@ -59,8 +59,10 @@ export default function App() {
       await axios.put(`${API}/todos/${id}`, { color: color || null });
       loadTodos();
     },
-    setTime: async (id, time, endTime) => {
-      await axios.put(`${API}/todos/${id}`, { scheduled_time: time || null, scheduled_end: endTime || null });
+    setTime: async (id, time, endTime, dueDate) => {
+      const payload = { scheduled_time: time || null, scheduled_end: endTime || null };
+      if (dueDate !== undefined) payload.due_date = dueDate || null;
+      await axios.put(`${API}/todos/${id}`, payload);
       loadTodos();
     },
   };
@@ -70,6 +72,7 @@ export default function App() {
       {intro && <CinematicIntro onDone={() => { setIntro(false); setColorIn(true); }} />}
 
       <Halation />
+      <Vignette />
       <FilmGrain />
       <ScanLines />
       <Artifacts />

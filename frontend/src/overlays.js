@@ -32,14 +32,14 @@ export function Halation() {
   return (
     <svg style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
       <defs>
-        <filter id="halation" x="-8%" y="-8%" width="116%" height="116%" colorInterpolationFilters="sRGB">
+        <filter id="halation" x="-14%" y="-14%" width="128%" height="128%" colorInterpolationFilters="sRGB">
           <feColorMatrix in="SourceGraphic" type="matrix"
             values="1 0 0 0  0
                     0 0 0 0  0
                     0 0 0 0  0
-                    2 -1 -1 0 -0.5"
+                    2 -1 -1 0 -0.45"
             result="warmOnly" />
-          <feGaussianBlur in="warmOnly" stdDeviation="5" result="bloom" />
+          <feGaussianBlur in="warmOnly" stdDeviation="7" result="bloom" />
           <feBlend in="SourceGraphic" in2="bloom" mode="screen" />
         </filter>
       </defs>
@@ -112,12 +112,29 @@ export function Artifacts() {
   );
 }
 
+// ── CRT Lens Vignette ─────────────────────────────────────────────────
+export function Vignette() {
+  const T = useT();
+  const opacity = T.grainBlend === 'screen' ? 0.55 : 0.24;
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'fixed', inset: 0,
+        background: `radial-gradient(ellipse 80% 70% at 50% 50%, transparent 35%, rgba(0,0,0,${opacity}) 100%)`,
+        pointerEvents: 'none',
+        zIndex: 9991,
+      }}
+    />
+  );
+}
+
 // ── Scan Lines ────────────────────────────────────────────────────────
 export function ScanLines() {
   const T = useT();
   const lineColor = T.grainBlend === 'screen'
-    ? 'rgba(255,255,255,0.018)'
-    : 'rgba(0,0,0,0.022)';
+    ? 'rgba(255,255,255,0.030)'
+    : 'rgba(0,0,0,0.028)';
   return (
     <div
       aria-hidden="true"
@@ -169,7 +186,8 @@ export function FilmStripNav({ view, setView }) {
               background: i === cur ? T.redSoft : T.paper,
               cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'border-color 0.2s, background 0.2s',
+              boxShadow: i === cur ? `inset 0 0 12px ${T.red}44` : 'none',
+              transition: 'border-color 0.2s, background 0.2s, box-shadow 0.2s',
             }}
           >
             <span style={{
@@ -314,7 +332,7 @@ export function CinematicIntro({ onDone }) {
       {phase >= 1 && (
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
-          background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(190,130,20,0.07) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(190,130,20,0.12) 0%, transparent 70%)',
         }} />
       )}
 
@@ -324,7 +342,7 @@ export function CinematicIntro({ onDone }) {
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 600,
             fontSize: 60, color: '#C08800',
             letterSpacing: '-0.02em', lineHeight: 1,
-            textShadow: '0 0 35px rgba(192,136,0,0.45), 0 0 70px rgba(200,57,26,0.12)',
+            textShadow: '0 0 30px rgba(192,136,0,0.60), 0 0 70px rgba(192,136,0,0.22), 0 0 120px rgba(200,57,26,0.14)',
           }}>
             BeigeBoard
           </div>

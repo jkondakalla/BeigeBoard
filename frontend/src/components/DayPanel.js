@@ -35,7 +35,7 @@ export function DayPanel({ dayKey, todos, ops }) {
               <span style={{ flex: 1, fontFamily: FONT_HEAD, fontSize: 16, color: task.completed ? T.ink2 : T.ink, textDecoration: task.completed ? 'line-through' : 'none' }}>
                 {task.title}
               </span>
-              <TimeField taskId={task.id} time={task.scheduled_time} endTime={task.scheduled_end} ops={ops} />
+              <TimeField taskId={task.id} time={task.scheduled_time} endTime={task.scheduled_end} dueDate={task.due_date} ops={ops} />
               <button onClick={() => ops.remove(task.id)} style={{ background: 'none', border: 'none', color: T.ink2, fontFamily: FONT_BODY, fontSize: 14, cursor: 'pointer', lineHeight: 1 }}>✕</button>
             </li>
           ))}

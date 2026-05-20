@@ -31,7 +31,7 @@ export function TaskQueue({ tasks, ops, numbered }) {
             textDecoration: task.completed ? 'line-through' : 'none',
             lineHeight: 1.3, transition: 'color 0.2s',
           }}>{task.title}</span>
-          <TimeField taskId={task.id} time={task.scheduled_time} endTime={task.scheduled_end} ops={ops} />
+          <TimeField taskId={task.id} time={task.scheduled_time} endTime={task.scheduled_end} dueDate={task.due_date} ops={ops} />
           <button onClick={() => ops.remove(task.id)} style={{
             background: 'transparent', border: `1px solid ${T.rule}`,
             fontFamily: FONT_BODY, fontSize: 11,

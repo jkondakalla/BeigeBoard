@@ -31,7 +31,7 @@ export function TodayView({ todos, ops, setView }) {
           {dateStr}
         </div>
         <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 52, lineHeight: 1.02, margin: 0, letterSpacing: '-0.025em', color: T.ink }}>
-          {getGreeting()} Today's <em style={{ fontStyle: 'italic', color: T.red }}>work.</em>
+          {getGreeting()} Today's <em style={{ fontStyle: 'italic', color: T.red, textShadow: `0 0 24px ${T.red}33` }}>work.</em>
         </h1>
       </div>
 

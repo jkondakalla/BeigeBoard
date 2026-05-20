@@ -111,6 +111,7 @@ function TaskRow({ task, allTodos, ops, level }) {
           fontStyle: isRoot ? 'normal' : 'italic',
           color: isRoot && accent ? 'rgba(255,255,255,0.92)' : (task.completed ? T.ink2 : T.ink),
           textDecoration: task.completed ? 'line-through' : 'none',
+          textShadow: isRoot && accent && !task.completed ? '0 0 10px rgba(255,255,255,0.35)' : 'none',
           transition: 'color 0.2s',
         }}>
           {task.title}
@@ -122,7 +123,7 @@ function TaskRow({ task, allTodos, ops, level }) {
           </span>
         )}
 
-        <TimeField taskId={task.id} time={task.scheduled_time} endTime={task.scheduled_end} ops={ops} />
+        <TimeField taskId={task.id} time={task.scheduled_time} endTime={task.scheduled_end} dueDate={task.due_date} ops={ops} />
 
         {level < MAX_DEPTH && (
           <button
@@ -194,7 +195,7 @@ export function TasksView({ todos, ops }) {
           Production
         </div>
         <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 42, margin: '6px 0 0', color: T.ink, letterSpacing: '-0.025em', lineHeight: 1.04 }}>
-          Director's <em style={{ color: T.red }}>Notes.</em>
+          Director's <em style={{ color: T.red, textShadow: `0 0 24px ${T.red}33` }}>Notes.</em>
         </h1>
       </div>
 

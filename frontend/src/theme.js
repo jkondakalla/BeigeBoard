@@ -38,7 +38,7 @@ export const useT = () => React.useContext(ThemeCtx);
 export const FONT_HEAD = "'Newsreader', 'EB Garamond', Georgia, serif";
 export const FONT_BODY = "'Inter Tight', system-ui, sans-serif";
 export const FONT_NUM  = "'Newsreader', Georgia, serif";
-export const API       = 'http://localhost:3000';
+export const API       = '';
 
 export function isoDate(d) {
   const z = new Date(d);
