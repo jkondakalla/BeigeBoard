@@ -192,10 +192,10 @@ export function TasksView({ todos, ops }) {
 
       <div style={{ borderBottom: `1px solid ${T.rule}`, paddingBottom: 18, marginBottom: 44 }}>
         <div style={{ fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.ink2 }}>
-          Production
+          Backlog
         </div>
         <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 42, margin: '6px 0 0', color: T.ink, letterSpacing: '-0.025em', lineHeight: 1.04 }}>
-          Director's <em style={{ color: T.red, textShadow: `0 0 24px ${T.red}33` }}>Notes.</em>
+          Everything <em style={{ color: T.red, textShadow: `0 0 24px ${T.red}33` }}>open.</em>
         </h1>
       </div>
 
