@@ -3,7 +3,7 @@
    Center: cassette transport — TODAY · WEEK · TASKS
    Right: live time readout + connected-accounts indicator
 
-   global: React, useT, DARK, FONT_HEAD, FONT_BODY, FONT_NUM,
+   global: React, useT, FONT_HEAD, FONT_BODY, FONT_NUM,
            localDate, sourceOf,
            TapeReel, TimeReadout, RecLamp */
 const { useState, useEffect } = React;
@@ -34,7 +34,7 @@ function AppHeader({ view, setView, today, onConnectClick, accounts }) {
       borderBottom: `1px solid ${T.rule}`,
       padding: '14px 32px 14px',
       flexShrink: 0,
-      boxShadow: scrolled ? `0 2px 24px rgba(0,0,0,${T === DARK ? 0.5 : 0.08})` : 'none',
+      boxShadow: scrolled ? `0 2px 24px rgba(0,0,0,0.5)` : 'none',
       transition: 'box-shadow 0.25s',
       zIndex: 100,
       display: 'grid',
@@ -127,7 +127,7 @@ function TapeDeck({ view, setView }) {
       aria-label="Primary"
       style={{
         display: 'flex', gap: 0,
-        background: T === DARK ? 'rgba(0,0,0,0.55)' : '#D9C698',
+        background: 'rgba(0,0,0,0.55)',
         border: `1px solid ${T.rule}`,
         padding: 3,
         boxShadow: `
@@ -153,15 +153,13 @@ function TapeButton({ tab, active, onClick }) {
   const T = useT();
   const [hover, setHover] = useState(false);
 
-  const face = active
-    ? (T === DARK ? '#1F1810' : '#C8AE88')
-    : (T === DARK ? '#15110A' : '#E4D5B0');
+  const face = active ? '#1F1810' : '#15110A';
   const labelColor = active ? T.ink : T.ink2;
   const labelShadow = active ? `0 0 14px ${T.red}66` : 'none';
 
   const press = active
     ? `inset 0 2px 4px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.04)`
-    : `inset 0 1px 0 rgba(255,255,255,${T === DARK ? 0.04 : 0.32}), inset 0 -2px 2px rgba(0,0,0,0.18), 0 1px 0 rgba(0,0,0,0.18)`;
+    : `inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -2px 2px rgba(0,0,0,0.18), 0 1px 0 rgba(0,0,0,0.18)`;
 
   return (
     <button
@@ -187,7 +185,7 @@ function TapeButton({ tab, active, onClick }) {
       <span style={{
         position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
         width: 7, height: 7, borderRadius: '50%',
-        background: active ? T.red : (T === DARK ? '#0A0806' : '#A89070'),
+        background: active ? T.red : '#0A0806',
         boxShadow: active
           ? `0 0 8px ${T.red}cc, 0 0 14px ${T.red}55, inset 0 -1px 0 rgba(255,255,255,0.25)`
           : `inset 0 1px 1px rgba(0,0,0,0.4)`,

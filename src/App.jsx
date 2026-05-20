@@ -1,10 +1,10 @@
 /* App — top-level wiring.
 
-   global: React, ThemeCtx, LIGHT, DARK, INITIAL_ACCOUNTS, TODAY_ISO,
-           FilmGrain, Halation, Artifacts, ScanLines, DarkToggle, CinematicIntro,
+   global: React, ThemeCtx, DARK, INITIAL_ACCOUNTS, TODAY_ISO,
+           FilmGrain, Halation, Artifacts, ScanLines, CinematicIntro,
            AppHeader, ConnectModal, DetailPanel,
-           TodayView, WeekView, TasksView,
-           TweaksPanel, useTweaks, TweakSection, TweakToggle, TweakColor, TweakButton, TweakRadio,
+           TodayView, WeekView, CalendarView, TasksView,
+           TweaksPanel, useTweaks, TweakSection, TweakToggle, TweakColor, TweakButton,
            sourceOf */
 
 const { useState, useEffect, useMemo } = React;
@@ -35,7 +35,6 @@ const api = {
 };
 
 function App() {
-  const [dark, setDark]                   = useState(true);
   const [intro, setIntro]                 = useState(() => TWEAK_DEFAULTS.intro);
   const [colorIn, setColorIn]             = useState(() => !TWEAK_DEFAULTS.intro);
   const [view, setView]                   = useState('today');
@@ -59,14 +58,13 @@ function App() {
   useEffect(() => { loadItems(); }, []);
 
   /* ── Theme ─────────────────────────────────────────────────── */
-  const baseTheme  = dark ? DARK : LIGHT;
-  const accentHex  = ACCENT_OPTIONS[tweaks.accent] ? tweaks.accent : ACCENT_HEXES[0];
+  const accentHex    = ACCENT_OPTIONS[tweaks.accent] ? tweaks.accent : ACCENT_HEXES[0];
   const accentExtras = ACCENT_OPTIONS[accentHex];
   const T = useMemo(() => ({
-    ...baseTheme,
-    red: accentHex,
-    redSoft: dark ? accentExtras.dredSoft : accentExtras.redSoft,
-  }), [dark, accentHex]);
+    ...DARK,
+    red:     accentHex,
+    redSoft: accentExtras.dredSoft,
+  }), [accentHex]);
 
   useEffect(() => {
     if (!tweaks.intro) { setIntro(false); setColorIn(true); }
@@ -188,6 +186,7 @@ function App() {
               accounts={accounts}
               onConnectClick={() => setShowConnect(true)}
             />
+
           </div>
 
           <main
@@ -225,8 +224,6 @@ function App() {
         accounts={accounts} onConnect={onConnect} onDisconnect={onDisconnect}
       />
 
-      <DarkToggle dark={dark} onToggle={() => setDark(d => !d)} />
-
       <TweaksPanel title="Tweaks">
         <TweakSection title="Accent">
           <TweakColor
@@ -234,12 +231,6 @@ function App() {
             value={tweaks.accent}
             options={ACCENT_HEXES}
             onChange={v => setTweak('accent', v)}
-          />
-          <TweakRadio
-            label="Theme"
-            value={dark ? 'dark' : 'light'}
-            options={['light', 'dark']}
-            onChange={v => setDark(v === 'dark')}
           />
         </TweakSection>
 
