@@ -9,9 +9,10 @@
 const { useState, useEffect } = React;
 
 const NAV_TABS = [
-  { id: 'today', label: 'Today', sub: 'now' },
-  { id: 'week',  label: 'Week',  sub: '7 days' },
-  { id: 'tasks', label: 'Tasks', sub: 'workshop' },
+  { id: 'today',    label: 'Today',    sub: 'now' },
+  { id: 'week',     label: 'Week',     sub: '7 days' },
+  { id: 'calendar', label: 'Calendar', sub: 'month' },
+  { id: 'tasks',    label: 'Tasks',    sub: 'workshop' },
 ];
 
 function AppHeader({ view, setView, today, onConnectClick, accounts }) {

@@ -10,7 +10,7 @@
            getAncestors, getChildren, getAccent, getProgress
 */
 
-function DetailPanel({ event, items, onClose, onToggle, onDelete, setView, setFocusedGoalId }) {
+function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedGoalId }) {
   const T = useT();
   if (!event) return null;
 
@@ -107,25 +107,9 @@ function DetailPanel({ event, items, onClose, onToggle, onDelete, setView, setFo
           </Field>
         )}
 
-        {/* When (anything time-anchored) */}
-        {(event.due_date || event.scheduled_time) && (
-          <Field label="When">
-            {event.due_date && (
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 16, color: T.ink, lineHeight: 1.3 }}>
-                {fmtFull(event.due_date)}
-              </div>
-            )}
-            {event.scheduled_time && (
-              <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 14, color: T.ink2, marginTop: 3 }}>
-                {fmtTime(event.scheduled_time)}{event.scheduled_end ? ` – ${fmtTime(event.scheduled_end)}` : ''}
-              </div>
-            )}
-            {!event.scheduled_time && isTask && (
-              <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 13, color: T.ink2, marginTop: 3 }}>
-                Anytime today
-              </div>
-            )}
-          </Field>
+        {/* When — always shown for tasks; editable */}
+        {(isTask || event.due_date || event.scheduled_time) && (
+          <WhenField event={event} isTask={isTask} onUpdateItem={onUpdateItem} />
         )}
 
         {event.location && (
@@ -269,6 +253,116 @@ function DetailPanel({ event, items, onClose, onToggle, onDelete, setView, setFo
         </div>
       </div>
     </aside>
+  );
+}
+
+/* ── WhenField — editable date + time scheduling ──────────────── */
+function WhenField({ event, isTask, onUpdateItem }) {
+  const T = useT();
+  const { useState: _useState } = React;
+  const [editing, setEditing] = _useState(false);
+  const [date,  setDate]  = _useState(event.due_date       || '');
+  const [start, setStart] = _useState(event.scheduled_time || '');
+  const [end,   setEnd]   = _useState(event.scheduled_end  || '');
+
+  /* Keep local state in sync when a different item is selected */
+  React.useEffect(() => {
+    setDate(event.due_date       || '');
+    setStart(event.scheduled_time || '');
+    setEnd(event.scheduled_end   || '');
+    setEditing(false);
+  }, [event.id]);
+
+  const save = () => {
+    onUpdateItem?.(event.id, {
+      due_date:       date  || null,
+      scheduled_time: start || null,
+      scheduled_end:  end   || null,
+    });
+    setEditing(false);
+  };
+
+  const clear = () => {
+    onUpdateItem?.(event.id, { due_date: null, scheduled_time: null, scheduled_end: null });
+    setDate(''); setStart(''); setEnd('');
+    setEditing(false);
+  };
+
+  const inputSty = {
+    background: 'transparent',
+    border: `1px solid ${T.rule}`,
+    fontFamily: FONT_BODY, fontSize: 11,
+    color: T.ink, padding: '4px 6px', outline: 'none',
+  };
+
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
+        <Eyebrow>When</Eyebrow>
+        {isTask && !editing && onUpdateItem && (
+          <button onClick={() => setEditing(true)} style={{
+            background: 'none', border: 'none',
+            fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
+            color: T.ink2, cursor: 'pointer', padding: 0,
+            textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2,
+          }}>edit</button>
+        )}
+      </div>
+
+      {editing ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputSty} />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input type="time" value={start} onChange={e => setStart(e.target.value)} placeholder="Start" style={{ ...inputSty, flex: 1 }} />
+            <span style={{ color: T.ink2, alignSelf: 'center', fontSize: 11 }}>–</span>
+            <input type="time" value={end}   onChange={e => setEnd(e.target.value)}   placeholder="End"   style={{ ...inputSty, flex: 1 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+            <button onClick={save} className="btn-action" style={{
+              flex: 1, background: T.red, color: T.paper, border: 'none',
+              fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
+              textTransform: 'uppercase', padding: '7px 0', cursor: 'pointer',
+            }}>Save</button>
+            <button onClick={() => setEditing(false)} style={{
+              flex: 1, background: 'transparent', border: `1px solid ${T.rule}`,
+              fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
+              textTransform: 'uppercase', color: T.ink2, padding: '7px 0', cursor: 'pointer',
+            }}>Cancel</button>
+            {(event.due_date || event.scheduled_time) && (
+              <button onClick={clear} style={{
+                background: 'transparent', border: `1px solid ${T.rule}`,
+                fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.12em',
+                textTransform: 'uppercase', color: T.ink3, padding: '7px 10px', cursor: 'pointer',
+              }}>Clear</button>
+            )}
+          </div>
+        </div>
+      ) : (event.due_date || event.scheduled_time) ? (
+        <div onClick={() => isTask && onUpdateItem && setEditing(true)} style={{ cursor: isTask && onUpdateItem ? 'pointer' : 'default' }}>
+          {event.due_date && (
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 16, color: T.ink, lineHeight: 1.3 }}>
+              {fmtFull(event.due_date)}
+            </div>
+          )}
+          {event.scheduled_time && (
+            <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 14, color: T.ink2, marginTop: 3 }}>
+              {fmtTime(event.scheduled_time)}{event.scheduled_end ? ` – ${fmtTime(event.scheduled_end)}` : ''}
+            </div>
+          )}
+          {!event.scheduled_time && isTask && (
+            <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 13, color: T.ink2, marginTop: 3 }}>
+              Anytime · tap edit to schedule
+            </div>
+          )}
+        </div>
+      ) : isTask ? (
+        <button onClick={() => onUpdateItem && setEditing(true)} style={{
+          background: 'transparent', border: `1px dashed ${T.rule}`,
+          fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
+          color: T.ink2, cursor: 'pointer', padding: '8px 12px', width: '100%', textAlign: 'left',
+        }}>+ Schedule this task</button>
+      ) : null}
+    </div>
   );
 }
 

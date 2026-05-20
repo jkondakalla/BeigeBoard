@@ -199,7 +199,60 @@ function TimeReadout({ style }) {
   );
 }
 
+/* ── ColorPicker — 7-swatch popover for task accent ──────────────── */
+function ColorPicker({ current, onChange, onClose }) {
+  const T = useT();
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const onDown = e => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [onClose]);
+
+  return (
+    <div ref={ref} style={{
+      position: 'absolute', zIndex: 300,
+      background: T.paperDark,
+      border: `1px solid ${T.rule}`,
+      boxShadow: `0 8px 32px rgba(0,0,0,0.45)`,
+      padding: '8px 10px',
+      display: 'flex', gap: 5, alignItems: 'center',
+    }}>
+      {/* No-color option */}
+      <button
+        onClick={() => { onChange(null); onClose(); }}
+        title="No color"
+        style={{
+          width: 18, height: 18, border: `1px solid ${T.rule}`,
+          background: 'transparent', cursor: 'pointer', padding: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: T.ink3, fontSize: 10, lineHeight: 1,
+          outline: !current ? `2px solid ${T.ink}` : 'none',
+          outlineOffset: 1,
+        }}
+      >✕</button>
+      {TASK_COLORS.map(c => (
+        <button
+          key={c.id}
+          onClick={() => { onChange(c.hex); onClose(); }}
+          title={c.label}
+          style={{
+            width: 18, height: 18,
+            background: c.hex,
+            border: 'none', cursor: 'pointer', padding: 0,
+            outline: current === c.hex ? `2px solid ${T.ink}` : 'none',
+            outlineOffset: 1,
+            boxShadow: current === c.hex ? `0 0 8px ${c.hex}99` : 'none',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 Object.assign(window, {
   Checkbox, Eyebrow,
   VUMeter, TapeReel, Plate, RecLamp, TimeReadout,
+  ColorPicker,
 });

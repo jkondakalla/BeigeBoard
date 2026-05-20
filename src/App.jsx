@@ -201,9 +201,10 @@ function App() {
               </div>
             ) : (
               <>
-                {view === 'today' && <TodayView {...viewProps} />}
-                {view === 'week'  && <WeekView  {...viewProps} />}
-                {view === 'tasks' && <TasksView {...viewProps} />}
+                {view === 'today'    && <TodayView    {...viewProps} />}
+                {view === 'week'     && <WeekView     {...viewProps} />}
+                {view === 'calendar' && <CalendarView {...viewProps} />}
+                {view === 'tasks'    && <TasksView    {...viewProps} />}
               </>
             )}
           </main>
@@ -212,7 +213,7 @@ function App() {
             <DetailPanel
               event={selected} items={items}
               onClose={() => setSelected(null)}
-              onToggle={onToggle} onDelete={onDelete}
+              onToggle={onToggle} onDelete={onDelete} onUpdateItem={onUpdateItem}
               setView={setView} setFocusedGoalId={setFocusedGoalId}
             />
           )}

@@ -176,7 +176,7 @@ function TasksView({ items, today, onSelect, onToggle, onAddItem, onDelete, onUp
                 key={g.id} item={g} items={items} index={i + 1} today={today}
                 isOpen={isOpen} toggle={toggle}
                 onSelect={onSelect} onToggle={onToggle}
-                onAddItem={onAddItem} onDelete={onDelete}
+                onAddItem={onAddItem} onDelete={onDelete} onUpdateItem={onUpdateItem}
                 selectedId={selectedId}
               />
             ))}
@@ -201,7 +201,7 @@ function TasksView({ items, today, onSelect, onToggle, onAddItem, onDelete, onUp
 /* ────────────────────────────────────────────────────────────────
    YEAR — large plate. Drop target for months.
    ──────────────────────────────────────────────────────────────── */
-function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, selectedId }) {
+function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId }) {
   const T = useT();
   const { drag } = useDrag();
   const accent = item.accent || T.red;
@@ -282,7 +282,7 @@ function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggl
               accent={accent}
               isOpen={isOpen} toggle={toggle}
               onSelect={onSelect} onToggle={onToggle}
-              onAddItem={onAddItem} onDelete={onDelete}
+              onAddItem={onAddItem} onDelete={onDelete} onUpdateItem={onUpdateItem}
               selectedId={selectedId}
             />
           ))}
@@ -307,7 +307,7 @@ function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggl
 /* ────────────────────────────────────────────────────────────────
    MONTH — drop target for weeks. Draggable onto year goals.
    ──────────────────────────────────────────────────────────────── */
-function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, selectedId }) {
+function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId }) {
   const T = useT();
   const { drag, beginDrag } = useDrag();
   const prog = getProgress(item, items);
@@ -368,7 +368,7 @@ function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onTog
               accent={accent}
               isOpen={isOpen} toggle={toggle}
               onSelect={onSelect} onToggle={onToggle}
-              onAddItem={onAddItem} onDelete={onDelete}
+              onAddItem={onAddItem} onDelete={onDelete} onUpdateItem={onUpdateItem}
               selectedId={selectedId}
             />
           ))}
@@ -392,7 +392,7 @@ function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onTog
 /* ────────────────────────────────────────────────────────────────
    WEEK — drop target for day tasks. Draggable onto month milestones.
    ──────────────────────────────────────────────────────────────── */
-function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, selectedId }) {
+function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId }) {
   const T = useT();
   const { drag, beginDrag } = useDrag();
   const tasks = getChildren(item, items).filter(c => c.kind === 'task');
@@ -447,7 +447,7 @@ function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onTogg
             <TaskRow
               key={t.id} item={t} items={items} depth={0}
               onSelect={onSelect} onToggle={onToggle}
-              onAddItem={onAddItem} onDelete={onDelete}
+              onAddItem={onAddItem} onDelete={onDelete} onUpdateItem={onUpdateItem}
               selectedId={selectedId} accent={accent}
             />
           ))}
@@ -471,7 +471,7 @@ function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onTogg
 /* ────────────────────────────────────────────────────────────────
    DAY TASK / SUBTASK — drop target for subtasks; draggable.
    ──────────────────────────────────────────────────────────────── */
-function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, selectedId, accent: parentAccent }) {
+function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, accent: parentAccent }) {
   const T = useT();
   const { drag, beginDrag } = useDrag();
   const accent = getAccent(item, items) || parentAccent || T.red;
@@ -479,7 +479,11 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
   const [expanded, setExpanded] = useState(true);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(item.title);
+  const [showColors, setShowColors] = useState(false);
   const inputRef = useRef(null);
+  const colorBtnRef = useRef(null);
   const isSel = selectedId === item.id;
   const isHovered = drag?.hoverId === item.id;
   const isValid = drag && isValidDrop(drag.item, item, items);
@@ -497,17 +501,24 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
+  const commitTitle = () => {
+    const t = titleDraft.trim();
+    if (t && t !== item.title) onUpdateItem?.(item.id, { title: t });
+    else setTitleDraft(item.title);
+    setEditingTitle(false);
+  };
+
   return (
     <li style={{ opacity: isBeingDragged ? 0.35 : 1 }}>
       <div
         data-drop-id={depth === 0 ? item.id : undefined}
         className="task-row"
-        onClick={() => onSelect(item)}
+        onClick={() => !editingTitle && onSelect(item)}
         style={{
           display: 'flex', alignItems: 'center', gap: 9,
           padding: depth === 0 ? '8px 4px' : '5px 4px',
           borderBottom: `1px solid ${T.ruleSoft}`,
-          cursor: 'pointer',
+          cursor: editingTitle ? 'default' : 'pointer',
           background: isHovered ? `${accent}33` : (isSel ? T.redSoft : 'transparent'),
           outline: isHovered ? `1.5px solid ${accent}` : isValid && depth === 0 ? `1px dashed ${accent}55` : 'none',
           outlineOffset: -1,
@@ -530,14 +541,68 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
 
         <Checkbox id={item.id} completed={item.completed} onToggle={onToggle} size={depth === 0 ? 13 : 11} color={accent} />
 
-        <span style={{
-          flex: 1, minWidth: 0,
-          fontFamily: FONT_BODY,
-          fontSize: depth === 0 ? 14 : 12.5,
-          color: item.completed ? T.ink2 : T.ink,
-          textDecoration: item.completed ? 'line-through' : 'none',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>{item.title}</span>
+        {/* Color swatch dot — click to open picker */}
+        {depth === 0 && (
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              ref={colorBtnRef}
+              onClick={e => { e.stopPropagation(); setShowColors(v => !v); }}
+              title="Set color"
+              style={{
+                width: 10, height: 10,
+                background: item.accent || T.ruleSoft,
+                border: item.accent ? 'none' : `1px solid ${T.rule}`,
+                borderRadius: 0,
+                cursor: 'pointer', padding: 0, flexShrink: 0,
+                boxShadow: item.accent ? `0 0 6px ${item.accent}88` : 'none',
+              }}
+            />
+            {showColors && (
+              <div style={{ position: 'absolute', left: 0, top: 16, zIndex: 200 }}>
+                <ColorPicker
+                  current={item.accent}
+                  onChange={hex => onUpdateItem?.(item.id, { accent: hex })}
+                  onClose={() => setShowColors(false)}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Title — double-click to edit */}
+        {editingTitle ? (
+          <input
+            autoFocus
+            value={titleDraft}
+            onChange={e => setTitleDraft(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') commitTitle();
+              if (e.key === 'Escape') { setTitleDraft(item.title); setEditingTitle(false); }
+            }}
+            onBlur={commitTitle}
+            onClick={e => e.stopPropagation()}
+            style={{
+              flex: 1, minWidth: 0,
+              background: 'transparent', border: 'none',
+              borderBottom: `1px solid ${T.rule}`,
+              fontFamily: FONT_BODY, fontSize: depth === 0 ? 14 : 12.5,
+              color: T.ink, outline: 'none', padding: '1px 0',
+            }}
+          />
+        ) : (
+          <span
+            onDoubleClick={e => { e.stopPropagation(); setTitleDraft(item.title); setEditingTitle(true); }}
+            title="Double-click to edit"
+            style={{
+              flex: 1, minWidth: 0,
+              fontFamily: FONT_BODY,
+              fontSize: depth === 0 ? 14 : 12.5,
+              color: item.completed ? T.ink2 : T.ink,
+              textDecoration: item.completed ? 'line-through' : 'none',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}
+          >{item.title}</span>
+        )}
 
         {item.due_date && depth === 0 && (
           <span style={{
@@ -587,7 +652,7 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
             <TaskRow
               key={s.id} item={s} items={items} depth={depth + 1}
               onSelect={onSelect} onToggle={onToggle}
-              onAddItem={onAddItem} onDelete={onDelete}
+              onAddItem={onAddItem} onDelete={onDelete} onUpdateItem={onUpdateItem}
               selectedId={selectedId} accent={accent}
             />
           ))}
