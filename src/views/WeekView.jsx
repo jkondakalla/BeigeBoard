@@ -79,6 +79,10 @@ function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdateItem, s
     }
   }, [cursor]); // eslint-disable-line
 
+  /* ── Create-pending state (replaces window.prompt) ─────────── */
+  const [createPending, setCreatePending] = useState(null);
+  /* createPending = { startDay, scheduled_time, scheduled_end } | null */
+
   /* ── Drag state ────────────────────────────────────────────── */
   const [drag, setDrag] = useState(null);
   /* drag = {
@@ -194,17 +198,11 @@ function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdateItem, s
       const b = d.overFrac !== null ? d.overFrac : a + 1;
       const start = Math.min(a, b);
       const end   = Math.max(a + 0.5, b);
-      /* Trigger inline add modal-like prompt — for simplicity, just create with placeholder */
-      const title = window.prompt('New task at ' + fmtTime(fracToTime(start)) + ' on ' + fmtWeekday(d.startDay));
-      if (title && title.trim()) {
-        onAddItem({
-          kind: 'task', scope: 'day',
-          due_date: d.startDay,
-          scheduled_time: fracToTime(start),
-          scheduled_end:  fracToTime(end),
-          title: title.trim(),
-        });
-      }
+      setCreatePending({
+        startDay: d.startDay,
+        scheduled_time: fracToTime(start),
+        scheduled_end:  fracToTime(end),
+      });
     }
   };
 
@@ -212,6 +210,7 @@ function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdateItem, s
   const totalH = HOURS.length * WV_ROW_H;
 
   return (
+    <>
     <div style={{ flex: 1, overflowY: 'auto', background: T.paper, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ flex: 1, minHeight: 0, padding: '24px 32px 0', display: 'flex', flexDirection: 'column', maxWidth: 1280, margin: '0 auto', width: '100%' }}>
 
@@ -434,6 +433,99 @@ function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdateItem, s
           </div>
         </div>
 
+      </div>
+    </div>
+
+    {createPending && (
+      <CreateDialog
+        pending={createPending}
+        onSubmit={title => {
+          onAddItem({
+            kind: 'task', scope: 'day',
+            due_date: createPending.startDay,
+            scheduled_time: createPending.scheduled_time,
+            scheduled_end:  createPending.scheduled_end,
+            title,
+          });
+          setCreatePending(null);
+        }}
+        onCancel={() => setCreatePending(null)}
+      />
+    )}
+    </>
+  );
+}
+
+/* ── CreateDialog — replaces window.prompt for drag-to-create ─── */
+function CreateDialog({ pending, onSubmit, onCancel }) {
+  const T = useT();
+  const [title, setTitle] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const handle = () => {
+    if (title.trim()) onSubmit(title.trim());
+    else onCancel();
+  };
+
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 400,
+        background: 'rgba(10,8,6,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        backdropFilter: 'blur(2px)',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        className="modal-in"
+        style={{
+          width: 'min(460px, 90vw)',
+          background: T.paperDark,
+          border: `1px solid ${T.rule}`,
+          boxShadow: `0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px ${T.red}22`,
+          padding: '22px 26px 24px',
+        }}
+      >
+        <div style={{
+          fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
+          textTransform: 'uppercase', color: T.red,
+          marginBottom: 10,
+        }}>
+          {fmtWeekday(pending.startDay)} · {fmtTime(pending.scheduled_time)} – {fmtTime(pending.scheduled_end)}
+        </div>
+        <input
+          ref={inputRef}
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') handle();
+            if (e.key === 'Escape') onCancel();
+          }}
+          placeholder="What needs to happen…"
+          style={{
+            width: '100%', background: 'transparent', border: 'none',
+            borderBottom: `1px solid ${T.rule}`,
+            fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 22,
+            color: T.ink, outline: 'none', padding: '4px 0 10px',
+          }}
+        />
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+          <button onClick={onCancel} style={{
+            background: 'transparent', border: `1px solid ${T.rule}`,
+            fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
+            textTransform: 'uppercase', color: T.ink2, padding: '8px 16px', cursor: 'pointer',
+          }}>Cancel</button>
+          <button onClick={handle} className="btn-action" style={{
+            background: T.red, border: 'none', color: T.paper,
+            fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
+            textTransform: 'uppercase', padding: '8px 20px', cursor: 'pointer',
+            boxShadow: `0 0 12px ${T.red}55`,
+          }}>Add →</button>
+        </div>
       </div>
     </div>
   );

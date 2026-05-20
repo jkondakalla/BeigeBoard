@@ -1,0 +1,14 @@
+services:
+  beigeBoard:
+    build: .
+    ports:
+      - "3001:3001"
+    volumes:
+      - bb-data:/data
+    environment:
+      PORT: 3001
+      DB_PATH: /data/beigeBoard.db
+    restart: unless-stopped
+
+volumes:
+  bb-data:
