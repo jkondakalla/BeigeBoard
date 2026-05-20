@@ -1,0 +1,927 @@
+/* TasksView — accordion workshop with drag-to-reparent.
+
+   All year goals visible on one page. Each plate has an expand toggle.
+   When expanded, its children appear beneath. Multiple can be open at once.
+
+   ── Drag-drop ─────────────────────────────────────────────────────────
+   Every non-root item has a drag handle (⠿). Grab and drag to reparent.
+   Valid drop targets (matching the next scope up the hierarchy and not
+   a descendant of the dragged item) light up while hovering.
+
+     · month-milestone  drops onto a year goal
+     · week-theme        drops onto a month milestone
+     · day-task          drops onto a week theme
+     · subtask           drops onto a day task
+
+   While dragging, a small colored pill follows the cursor, halated in
+   the item's own accent.
+
+   No view-enter animations on this page (per user preference).
+
+   global: React, ReactDOM, useT, FONT_HEAD, FONT_BODY, FONT_NUM,
+           Eyebrow, Checkbox, VUMeter, TapeReel, Plate,
+           halate,
+           getChildren, getDescendants, getAccent, getProgress,
+           localDate, fmtTime, fmtWeekday, weekStart,
+           TODAY_ISO */
+
+const { useState, useEffect, useRef, useCallback, createContext, useContext } = React;
+
+/* ── Drag context ─────────────────────────────────────────────── */
+const DragCtx = createContext(null);
+const useDrag = () => useContext(DragCtx) || {};
+
+/* What scope is a valid PARENT for items of this scope? */
+const PARENT_OF = {
+  month:   'year',
+  week:    'month',
+  day:     'week',
+  subtask: 'day',
+};
+/* What kind is a valid PARENT for items of this scope? */
+function isValidDrop(dragItem, targetItem, items) {
+  if (!dragItem || !targetItem) return false;
+  if (dragItem.id === targetItem.id) return false;
+  /* Can't drop on a descendant (no circular trees) */
+  const descs = getDescendants(dragItem, items).map(d => d.id);
+  if (descs.includes(targetItem.id)) return false;
+  /* If already that parent, no-op */
+  if (dragItem.parent_id === targetItem.id) return false;
+  /* Match scope */
+  const want = PARENT_OF[dragItem.scope];
+  if (!want) return false;
+  if (want === 'day') {
+    return targetItem.kind === 'task' && targetItem.scope === 'day';
+  }
+  return targetItem.scope === want;
+}
+
+function TasksView({ items, today, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, focusedGoalId }) {
+  const T = useT();
+  const yearGoals = items.filter(it => it.scope === 'year');
+  const year = localDate(today).getFullYear();
+
+  const [expanded, setExpanded] = useState(() =>
+    focusedGoalId ? new Set([focusedGoalId]) : new Set());
+  const isOpen = id => expanded.has(id);
+  const toggle = id => setExpanded(s => {
+    const next = new Set(s);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const expandAll = () => {
+    const all = new Set();
+    items.forEach(it => {
+      if (it.scope === 'year' || it.scope === 'month' || it.scope === 'week') all.add(it.id);
+    });
+    setExpanded(all);
+  };
+  const collapseAll = () => setExpanded(new Set());
+
+  /* ── Drag state ────────────────────────────────────────────── */
+  const [drag, setDrag] = useState(null);
+  /* drag = { item, pos: {x,y}, hoverId } */
+
+  const beginDrag = useCallback((e, item) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDrag({ item, pos: { x: e.clientX, y: e.clientY }, hoverId: null });
+  }, []);
+
+  useEffect(() => {
+    if (!drag) return;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'grabbing';
+
+    const onMove = e => {
+      const targets = document.querySelectorAll('[data-drop-id]');
+      let hoverId = null;
+      for (const t of targets) {
+        const r = t.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right &&
+            e.clientY >= r.top && e.clientY <= r.bottom) {
+          const id = parseInt(t.getAttribute('data-drop-id'), 10);
+          const target = items.find(i => i.id === id);
+          if (isValidDrop(drag.item, target, items)) {
+            hoverId = id;
+            break;
+          }
+        }
+      }
+      setDrag(d => d ? { ...d, pos: { x: e.clientX, y: e.clientY }, hoverId } : d);
+    };
+
+    const onUp = () => {
+      setDrag(d => {
+        if (d?.hoverId && onUpdateItem) {
+          onUpdateItem(d.item.id, { parent_id: d.hoverId });
+          /* Auto-expand the new parent so the user sees it land */
+          setExpanded(s => { const n = new Set(s); n.add(d.hoverId); return n; });
+        }
+        return null;
+      });
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => {
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+  }, [drag, items, onUpdateItem]);
+
+  const dragCtxValue = { drag, beginDrag };
+
+  return (
+    <DragCtx.Provider value={dragCtxValue}>
+      <div style={{ flex: 1, overflowY: 'auto', background: T.paper }}>
+        <div style={{ maxWidth: 920, margin: '0 auto', padding: '36px 40px 80px' }}>
+
+          {/* Header */}
+          <header style={{
+            paddingBottom: 20, marginBottom: 24, borderBottom: `1px solid ${T.rule}`,
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 18,
+          }}>
+            <div>
+              <Eyebrow>The workshop · {year}</Eyebrow>
+              <h1 style={{
+                fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 44,
+                margin: '8px 0 8px', letterSpacing: '-0.025em', lineHeight: 1.04, color: T.ink,
+              }}>
+                The <em style={{
+                  fontStyle: 'italic', color: T.red,
+                  textShadow: halate(T.red, 'hi'),
+                }}>year</em> ahead.
+              </h1>
+              <p style={{
+                fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14,
+                color: T.ink2, margin: 0, lineHeight: 1.4,
+              }}>
+                Click to break it down. Drag <span style={{ color: T.ink, fontStyle: 'normal' }}>⠿</span> to reparent.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={expandAll}   style={miniBtn(T)}>Expand all</button>
+              <button onClick={collapseAll} style={miniBtn(T)}>Collapse</button>
+            </div>
+          </header>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {yearGoals.map((g, i) => (
+              <YearNode
+                key={g.id} item={g} items={items} index={i + 1} today={today}
+                isOpen={isOpen} toggle={toggle}
+                onSelect={onSelect} onToggle={onToggle}
+                onAddItem={onAddItem} onDelete={onDelete}
+                selectedId={selectedId}
+              />
+            ))}
+
+            <AddPlate
+              label="+ Add a year goal"
+              placeholder="A goal you'd be proud of in December…"
+              onSubmit={title => onAddItem({
+                kind: 'goal', scope: 'year', year,
+                title, accent: '#7A6050', source: 'bb',
+              })}
+            />
+          </div>
+        </div>
+      </div>
+
+      {drag && <DragPill drag={drag} items={items} />}
+    </DragCtx.Provider>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────
+   YEAR — large plate. Drop target for months.
+   ──────────────────────────────────────────────────────────────── */
+function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, selectedId }) {
+  const T = useT();
+  const { drag } = useDrag();
+  const accent = item.accent || T.red;
+  const prog = getProgress(item, items);
+  const months = getChildren(item, items).filter(c => c.scope === 'month');
+  const open = isOpen(item.id);
+  const isHovered = drag?.hoverId === item.id;
+  const isValid = drag && isValidDrop(drag.item, item, items);
+
+  return (
+    <article style={{ position: 'relative' }}>
+      <Plate accent={accent} style={{
+        padding: '22px 26px 22px 36px',
+        cursor: 'pointer',
+        outline: isHovered ? `2px solid ${accent}` : isValid ? `1px dashed ${accent}99` : 'none',
+        outlineOffset: -1,
+        boxShadow: isHovered ? `0 0 0 1px ${T.paper}, 0 0 32px ${accent}99, inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 4px rgba(0,0,0,0.18)` : undefined,
+        transition: 'outline 0.12s, box-shadow 0.12s',
+      }} dataDropId={item.id}>
+        <div onClick={() => toggle(item.id)}>
+          {/* Top row */}
+          <div style={{
+            display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+            gap: 14, marginBottom: 10,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, minWidth: 0 }}>
+              <span style={{
+                fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
+                textTransform: 'uppercase', color: accent,
+                textShadow: halate(accent, 'low'),
+              }}>{`Goal ${String(index).padStart(2, '0')} · Year`}</span>
+              {item.target && (
+                <>
+                  <span style={{ color: T.ink3, opacity: 0.6 }}>·</span>
+                  <span style={{
+                    fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: T.ink2,
+                  }}>{item.target}</span>
+                </>
+              )}
+            </div>
+            <ExpandToggle open={open} count={months.length} childLabel="month" accent={accent}
+              onClick={(e) => { e.stopPropagation(); toggle(item.id); }} />
+          </div>
+
+          {/* Title */}
+          <h2 style={{
+            fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 28,
+            margin: 0, letterSpacing: '-0.025em', lineHeight: 1.12, color: T.ink,
+          }}>
+            {item.title}
+            <span style={{ color: accent, textShadow: halate(accent, 'hi') }}>.</span>
+          </h2>
+
+          {item.notes && (
+            <p style={{
+              fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
+              color: T.ink2, margin: '8px 0 0', lineHeight: 1.45, maxWidth: 600,
+            }}>"{item.notes}"</p>
+          )}
+
+          <div style={{ marginTop: 16 }}>
+            <VUMeter pct={prog.pct} color={accent} segments={24} label={prog.total > 0 ? `${prog.pct}%` : '—'} />
+          </div>
+        </div>
+      </Plate>
+
+      {/* Expanded children */}
+      {open && (
+        <div style={{
+          marginTop: 10, marginLeft: 18,
+          paddingLeft: 18, borderLeft: `1px solid ${accent}55`,
+          boxShadow: `inset 4px 0 12px -8px ${accent}66`,
+          display: 'flex', flexDirection: 'column', gap: 10,
+        }}>
+          {months.map(m => (
+            <MonthNode
+              key={m.id} item={m} items={items} today={today}
+              accent={accent}
+              isOpen={isOpen} toggle={toggle}
+              onSelect={onSelect} onToggle={onToggle}
+              onAddItem={onAddItem} onDelete={onDelete}
+              selectedId={selectedId}
+            />
+          ))}
+          <AddSubtle
+            childScope="month"
+            accent={accent}
+            placeholder="A month-level milestone…"
+            onSubmit={title => onAddItem({
+              kind: 'goal', scope: 'month',
+              parent_id: item.id,
+              title, accent, source: item.source || 'bb',
+              year: item.year,
+              month: (new Date()).getMonth() + 1,
+            })}
+          />
+        </div>
+      )}
+    </article>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────
+   MONTH — drop target for weeks. Draggable onto year goals.
+   ──────────────────────────────────────────────────────────────── */
+function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, selectedId }) {
+  const T = useT();
+  const { drag, beginDrag } = useDrag();
+  const prog = getProgress(item, items);
+  const weeks = getChildren(item, items).filter(c => c.scope === 'week');
+  const open = isOpen(item.id);
+  const ml = monthLabel(item.month);
+  const isHovered = drag?.hoverId === item.id;
+  const isValid = drag && isValidDrop(drag.item, item, items);
+  const isBeingDragged = drag?.item?.id === item.id;
+
+  return (
+    <div style={{ opacity: isBeingDragged ? 0.35 : 1 }}>
+      <header
+        data-drop-id={item.id}
+        onClick={() => toggle(item.id)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '8px 12px',
+          background: open ? `${accent}14` : (isHovered ? `${accent}33` : 'transparent'),
+          cursor: 'pointer',
+          outline: isHovered ? `1.5px solid ${accent}` : isValid ? `1px dashed ${accent}55` : 'none',
+          outlineOffset: -1,
+          boxShadow: isHovered ? `0 0 18px ${accent}66` : 'none',
+          transition: 'background 0.12s, outline 0.12s, box-shadow 0.12s',
+        }}
+      >
+        <Caret open={open} color={accent} />
+        <span style={{
+          fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.22em',
+          textTransform: 'uppercase', color: accent,
+          textShadow: halate(accent, 'low'),
+          border: `1px solid ${accent}55`,
+          padding: '3px 9px',
+          flexShrink: 0,
+          background: 'rgba(0,0,0,0.18)',
+        }}>{ml}</span>
+        <h3 style={{
+          flex: 1, minWidth: 0,
+          fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 500, fontSize: 19,
+          margin: 0, color: T.ink, lineHeight: 1.25, letterSpacing: '-0.015em',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{item.title}</h3>
+        <span style={{
+          fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 13, color: T.ink2, flexShrink: 0,
+        }}>{prog.total > 0 ? `${prog.done}/${prog.total}` : `${weeks.length}w`}</span>
+        <DragHandle onMouseDown={(e) => beginDrag(e, item)} />
+      </header>
+
+      {open && (
+        <div style={{
+          marginLeft: 22, paddingLeft: 16, marginTop: 6,
+          borderLeft: `1px solid ${accent}33`,
+          display: 'flex', flexDirection: 'column', gap: 4,
+        }}>
+          {weeks.map(w => (
+            <WeekNode
+              key={w.id} item={w} items={items} today={today}
+              accent={accent}
+              isOpen={isOpen} toggle={toggle}
+              onSelect={onSelect} onToggle={onToggle}
+              onAddItem={onAddItem} onDelete={onDelete}
+              selectedId={selectedId}
+            />
+          ))}
+          <AddSubtle
+            childScope="week"
+            accent={accent}
+            placeholder="A theme for one week…"
+            onSubmit={title => onAddItem({
+              kind: 'goal', scope: 'week',
+              parent_id: item.id,
+              title, accent, source: item.source || 'bb',
+              weekStart: weekStart(today),
+            })}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────
+   WEEK — drop target for day tasks. Draggable onto month milestones.
+   ──────────────────────────────────────────────────────────────── */
+function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, selectedId }) {
+  const T = useT();
+  const { drag, beginDrag } = useDrag();
+  const tasks = getChildren(item, items).filter(c => c.kind === 'task');
+  const open = isOpen(item.id);
+  const done = tasks.filter(t => t.completed).length;
+  const isHovered = drag?.hoverId === item.id;
+  const isValid = drag && isValidDrop(drag.item, item, items);
+  const isBeingDragged = drag?.item?.id === item.id;
+
+  return (
+    <div style={{ opacity: isBeingDragged ? 0.35 : 1 }}>
+      <header
+        data-drop-id={item.id}
+        onClick={() => toggle(item.id)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '6px 10px',
+          cursor: 'pointer',
+          background: isHovered ? `${accent}33` : 'transparent',
+          outline: isHovered ? `1.5px solid ${accent}` : isValid ? `1px dashed ${accent}55` : 'none',
+          outlineOffset: -1,
+          boxShadow: isHovered ? `0 0 14px ${accent}55` : 'none',
+          transition: 'background 0.12s, outline 0.12s, box-shadow 0.12s',
+        }}
+      >
+        <Caret open={open} color={accent} small />
+        <span style={{
+          fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12, color: T.ink3,
+          flexShrink: 0,
+        }}>week of</span>
+        <span style={{
+          flex: 1, minWidth: 0,
+          fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 15,
+          color: T.ink, lineHeight: 1.3,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{item.title}</span>
+        {tasks.length > 0 && (
+          <span style={{
+            fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: T.ink2, flexShrink: 0,
+          }}>{done}/{tasks.length}</span>
+        )}
+        <DragHandle onMouseDown={(e) => beginDrag(e, item)} small />
+      </header>
+
+      {open && (
+        <ul style={{
+          listStyle: 'none', padding: 0, margin: '4px 0 8px',
+          marginLeft: 18, paddingLeft: 16,
+          borderLeft: `1px solid ${accent}26`,
+        }}>
+          {tasks.map(t => (
+            <TaskRow
+              key={t.id} item={t} items={items} depth={0}
+              onSelect={onSelect} onToggle={onToggle}
+              onAddItem={onAddItem} onDelete={onDelete}
+              selectedId={selectedId} accent={accent}
+            />
+          ))}
+          <li>
+            <AddTaskInline
+              accent={accent}
+              onSubmit={title => onAddItem({
+                kind: 'task', scope: 'day',
+                parent_id: item.id,
+                title, accent, source: item.source || 'bb',
+                due_date: today,
+              })}
+            />
+          </li>
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────
+   DAY TASK / SUBTASK — drop target for subtasks; draggable.
+   ──────────────────────────────────────────────────────────────── */
+function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, selectedId, accent: parentAccent }) {
+  const T = useT();
+  const { drag, beginDrag } = useDrag();
+  const accent = getAccent(item, items) || parentAccent || T.red;
+  const subs = getChildren(item, items);
+  const [expanded, setExpanded] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef(null);
+  const isSel = selectedId === item.id;
+  const isHovered = drag?.hoverId === item.id;
+  const isValid = drag && isValidDrop(drag.item, item, items);
+  const isBeingDragged = drag?.item?.id === item.id;
+
+  const handleAdd = () => {
+    if (!draft.trim()) { setAdding(false); return; }
+    onAddItem({
+      kind: 'task', scope: 'subtask',
+      parent_id: item.id, due_date: item.due_date,
+      title: draft.trim(), source: item.source || 'bb',
+      accent,
+    });
+    setDraft('');
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  return (
+    <li style={{ opacity: isBeingDragged ? 0.35 : 1 }}>
+      <div
+        data-drop-id={depth === 0 ? item.id : undefined}
+        className="task-row"
+        onClick={() => onSelect(item)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 9,
+          padding: depth === 0 ? '8px 4px' : '5px 4px',
+          borderBottom: `1px solid ${T.ruleSoft}`,
+          cursor: 'pointer',
+          background: isHovered ? `${accent}33` : (isSel ? T.redSoft : 'transparent'),
+          outline: isHovered ? `1.5px solid ${accent}` : isValid && depth === 0 ? `1px dashed ${accent}55` : 'none',
+          outlineOffset: -1,
+          boxShadow: isHovered ? `0 0 12px ${accent}66` : 'none',
+          transition: 'background 0.12s, outline 0.12s, box-shadow 0.12s',
+          '--hover-bg': T.paperDark,
+        }}
+      >
+        <button
+          onClick={e => { e.stopPropagation(); if (subs.length) setExpanded(v => !v); }}
+          style={{
+            background: 'none', border: 'none',
+            color: subs.length ? T.ink2 : 'transparent',
+            fontSize: 8, cursor: subs.length ? 'pointer' : 'default',
+            padding: 0, lineHeight: 1, flexShrink: 0, width: 12,
+            transform: expanded ? 'rotate(90deg)' : 'none',
+            transition: 'transform 0.15s',
+          }}
+        >▶</button>
+
+        <Checkbox id={item.id} completed={item.completed} onToggle={onToggle} size={depth === 0 ? 13 : 11} color={accent} />
+
+        <span style={{
+          flex: 1, minWidth: 0,
+          fontFamily: FONT_BODY,
+          fontSize: depth === 0 ? 14 : 12.5,
+          color: item.completed ? T.ink2 : T.ink,
+          textDecoration: item.completed ? 'line-through' : 'none',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{item.title}</span>
+
+        {item.due_date && depth === 0 && (
+          <span style={{
+            fontFamily: FONT_BODY, fontSize: 10, color: T.ink2,
+            letterSpacing: '0.08em', flexShrink: 0,
+          }}>
+            {fmtWeekday(item.due_date)} {localDate(item.due_date).getDate()}
+          </span>
+        )}
+
+        {item.scheduled_time && (
+          <span style={{
+            fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 11.5,
+            color: accent, flexShrink: 0,
+            textShadow: halate(accent, 'low'),
+          }}>{fmtTime(item.scheduled_time)}</span>
+        )}
+
+        {subs.length > 0 && (
+          <span style={{
+            fontFamily: FONT_BODY, fontSize: 10, color: T.ink2, flexShrink: 0,
+          }}>{subs.filter(s => s.completed).length}/{subs.length}</span>
+        )}
+
+        <button
+          onClick={e => { e.stopPropagation(); setAdding(true); setExpanded(true); }}
+          title="Add a smaller step"
+          style={{
+            background: 'none', border: 'none', color: T.ink3,
+            fontSize: 14, cursor: 'pointer', lineHeight: 1, padding: '0 3px', flexShrink: 0,
+          }}
+        >+</button>
+        <button
+          onClick={e => { e.stopPropagation(); onDelete?.(item.id); }}
+          style={{
+            background: 'none', border: 'none', color: T.ink3,
+            fontSize: 11, cursor: 'pointer', lineHeight: 1, padding: '0 2px', flexShrink: 0,
+            opacity: 0.6,
+          }}
+        >✕</button>
+        <DragHandle onMouseDown={(e) => beginDrag(e, item)} small />
+      </div>
+
+      {expanded && (subs.length > 0 || adding) && (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, marginLeft: 16, paddingLeft: 10, borderLeft: `1px solid ${T.ruleSoft}` }}>
+          {subs.map(s => (
+            <TaskRow
+              key={s.id} item={s} items={items} depth={depth + 1}
+              onSelect={onSelect} onToggle={onToggle}
+              onAddItem={onAddItem} onDelete={onDelete}
+              selectedId={selectedId} accent={accent}
+            />
+          ))}
+          {adding && (
+            <li style={{
+              display: 'flex', alignItems: 'center', gap: 9, padding: '5px 4px',
+              borderBottom: `1px solid ${T.ruleSoft}`,
+            }} onClick={e => e.stopPropagation()}>
+              <span style={{ width: 12 }} />
+              <span style={{ width: 11, height: 11, border: `1px solid ${T.rule}`, flexShrink: 0 }} />
+              <input
+                ref={inputRef} autoFocus value={draft}
+                onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleAdd();
+                  if (e.key === 'Escape') { setAdding(false); setDraft(''); }
+                }}
+                onBlur={() => { if (!draft.trim()) setAdding(false); }}
+                placeholder="A smaller step…"
+                style={{
+                  flex: 1, background: 'transparent', border: 'none',
+                  borderBottom: `1px solid ${T.rule}`,
+                  fontFamily: FONT_BODY, fontSize: 12.5,
+                  color: T.ink, outline: 'none', padding: '2px 0',
+                }}
+              />
+            </li>
+          )}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────
+   Drag handle + floating pill
+   ──────────────────────────────────────────────────────────────── */
+function DragHandle({ onMouseDown, small }) {
+  const T = useT();
+  return (
+    <span
+      onMouseDown={onMouseDown}
+      onClick={e => e.stopPropagation()}
+      title="Drag to reparent"
+      style={{
+        flexShrink: 0,
+        cursor: 'grab',
+        padding: '0 4px',
+        color: T.ink3, fontSize: small ? 10 : 12,
+        letterSpacing: '-0.1em', lineHeight: 1,
+        userSelect: 'none',
+        opacity: 0.55,
+        transition: 'opacity 0.15s, color 0.15s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = T.ink2; }}
+      onMouseLeave={e => { e.currentTarget.style.opacity = 0.55; e.currentTarget.style.color = T.ink3; }}
+    >⠿</span>
+  );
+}
+
+function DragPill({ drag, items }) {
+  const T = useT();
+  const item = drag.item;
+  const accent = getAccent(item, items) || T.red;
+  const valid = drag.hoverId !== null;
+
+  /* Portal to body — escapes the parent filter:url(#halation) container so
+     position:fixed measures against the viewport. */
+  const pill = (
+    <div style={{
+      position: 'fixed',
+      left: drag.pos.x + 14,
+      top:  drag.pos.y + 14,
+      pointerEvents: 'none',
+      zIndex: 99999,
+      background: accent,
+      color: 'rgba(255,255,255,0.96)',
+      fontFamily: FONT_BODY, fontSize: 12, letterSpacing: '0.02em',
+      padding: '7px 14px',
+      maxWidth: 320,
+      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      transform: `rotate(${valid ? -2 : -4}deg) scale(${valid ? 1.04 : 1})`,
+      boxShadow: `
+        0 0 24px ${accent}99,
+        0 0 48px ${accent}55,
+        0 12px 32px rgba(0,0,0,0.5),
+        inset 0 1px 0 rgba(255,255,255,0.18),
+        inset 0 -1px 0 rgba(0,0,0,0.18)
+      `,
+      transition: 'transform 0.12s',
+      display: 'flex', alignItems: 'center', gap: 8,
+    }}>
+      <span style={{
+        fontFamily: FONT_BODY, fontSize: 8, letterSpacing: '0.22em',
+        textTransform: 'uppercase', opacity: 0.6,
+        padding: '1px 5px', border: `1px solid rgba(255,255,255,0.25)`,
+      }}>{item.scope}</span>
+      <span>{item.title}</span>
+      {valid && (
+        <span style={{
+          fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
+          textTransform: 'uppercase', opacity: 0.7,
+          paddingLeft: 8, marginLeft: 2, borderLeft: `1px solid rgba(255,255,255,0.25)`,
+        }}>release →</span>
+      )}
+    </div>
+  );
+
+  return ReactDOM.createPortal(pill, document.body);
+}
+
+/* ────────────────────────────────────────────────────────────────
+   Atoms
+   ──────────────────────────────────────────────────────────────── */
+
+function ExpandToggle({ open, count, childLabel, accent, onClick }) {
+  const T = useT();
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 7,
+        background: 'transparent', border: `1px solid ${open ? accent : T.rule}`,
+        padding: '4px 10px', cursor: 'pointer',
+        fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
+        textTransform: 'uppercase', color: open ? accent : T.ink2,
+        flexShrink: 0,
+        textShadow: open ? halate(accent, 'low') : 'none',
+        boxShadow: open
+          ? `inset 0 1px 0 rgba(0,0,0,0.3), 0 0 12px ${accent}33`
+          : `inset 0 1px 0 rgba(255,255,255,0.04)`,
+        transition: 'border-color 0.15s, color 0.15s, box-shadow 0.15s',
+      }}
+    >
+      <Caret open={open} color={open ? accent : T.ink2} small />
+      {count > 0 ? `${count} ${childLabel}${count === 1 ? '' : 's'}` : 'open'}
+    </button>
+  );
+}
+
+function Caret({ open, color, small }) {
+  const sz = small ? 7 : 9;
+  return (
+    <span style={{
+      display: 'inline-block', fontSize: sz, lineHeight: 1,
+      color, flexShrink: 0,
+      transform: open ? 'rotate(90deg)' : 'none',
+      transition: 'transform 0.15s',
+      width: sz + 2,
+    }}>▶</span>
+  );
+}
+
+function AddPlate({ label, placeholder, onSubmit }) {
+  const T = useT();
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const handle = () => {
+    if (!draft.trim()) { setAdding(false); return; }
+    onSubmit(draft.trim());
+    setDraft(''); setAdding(false);
+  };
+
+  if (!adding) {
+    return (
+      <button
+        onClick={() => setAdding(true)}
+        style={{
+          background: 'transparent', border: `1px dashed ${T.rule}`,
+          padding: '16px 22px',
+          fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14,
+          color: T.ink2, cursor: 'pointer',
+          width: '100%', textAlign: 'left',
+        }}
+      >{label}</button>
+    );
+  }
+
+  return (
+    <div style={{
+      display: 'flex', gap: 10, alignItems: 'baseline',
+      padding: '16px 22px',
+      border: `1px solid ${T.rule}`, background: T.paperDark,
+    }}>
+      <input
+        autoFocus value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') handle();
+          if (e.key === 'Escape') { setAdding(false); setDraft(''); }
+        }}
+        placeholder={placeholder}
+        style={{
+          flex: 1, background: 'transparent', border: 'none',
+          fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 19,
+          color: T.ink, outline: 'none',
+        }}
+      />
+      <button onClick={handle} className="btn-action" style={{
+        background: T.red, color: T.paper, border: 'none',
+        fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
+        textTransform: 'uppercase', padding: '8px 16px', cursor: 'pointer',
+        boxShadow: halate(T.red, 'mid'),
+      }}>Stamp →</button>
+    </div>
+  );
+}
+
+function AddSubtle({ accent, placeholder, onSubmit, childScope }) {
+  const T = useT();
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const handle = () => {
+    if (!draft.trim()) { setAdding(false); return; }
+    onSubmit(draft.trim());
+    setDraft(''); setAdding(false);
+  };
+
+  if (!adding) {
+    return (
+      <button
+        onClick={() => setAdding(true)}
+        style={{
+          background: 'transparent', border: 'none',
+          fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12,
+          color: T.ink3, cursor: 'pointer',
+          padding: '6px 12px', textAlign: 'left',
+          textDecoration: 'underline', textDecorationStyle: 'dotted',
+          textUnderlineOffset: 3, textDecorationColor: (accent || T.ink2) + '70',
+        }}
+      >+ break down further</button>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px' }}>
+      <span style={{
+        fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
+        textTransform: 'uppercase', color: accent,
+        textShadow: halate(accent, 'low'),
+        border: `1px solid ${accent}55`,
+        padding: '2px 8px', flexShrink: 0,
+      }}>{childScope}</span>
+      <input
+        autoFocus value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') handle();
+          if (e.key === 'Escape') { setAdding(false); setDraft(''); }
+        }}
+        onBlur={() => { if (!draft.trim()) setAdding(false); }}
+        placeholder={placeholder}
+        style={{
+          flex: 1, background: 'transparent', border: 'none',
+          borderBottom: `1px solid ${T.rule}`,
+          fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14,
+          color: T.ink, outline: 'none', padding: '2px 0',
+        }}
+      />
+    </div>
+  );
+}
+
+function AddTaskInline({ accent, onSubmit }) {
+  const T = useT();
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const handle = () => {
+    if (!draft.trim()) { setAdding(false); return; }
+    onSubmit(draft.trim());
+    setDraft('');
+  };
+
+  if (!adding) {
+    return (
+      <button
+        onClick={() => setAdding(true)}
+        style={{
+          width: '100%', textAlign: 'left',
+          background: 'transparent', border: 'none',
+          padding: '8px 4px',
+          fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
+          color: T.ink3, cursor: 'pointer',
+        }}
+      >+ Add a concrete task</button>
+    );
+  }
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 9,
+      padding: '8px 4px',
+      borderBottom: `1px solid ${T.ruleSoft}`,
+    }}>
+      <span style={{ width: 12 }} />
+      <span style={{ width: 13, height: 13, border: `1px solid ${T.rule}`, flexShrink: 0 }} />
+      <input
+        autoFocus value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') handle();
+          if (e.key === 'Escape') { setAdding(false); setDraft(''); }
+        }}
+        placeholder="A concrete task…"
+        style={{
+          flex: 1, background: 'transparent', border: 'none',
+          borderBottom: `1px solid ${T.rule}`,
+          fontFamily: FONT_BODY, fontSize: 13.5,
+          color: T.ink, outline: 'none', padding: '3px 0',
+        }}
+      />
+      <button onClick={handle} className="btn-action" style={{
+        background: accent || T.red, color: T.paper, border: 'none',
+        fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
+        textTransform: 'uppercase', padding: '6px 12px', cursor: 'pointer',
+        boxShadow: halate(accent || T.red, 'mid'),
+      }}>Add</button>
+    </div>
+  );
+}
+
+function miniBtn(T) {
+  return {
+    background: 'transparent', border: `1px solid ${T.rule}`,
+    fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.18em',
+    textTransform: 'uppercase', color: T.ink2, cursor: 'pointer',
+    padding: '5px 11px',
+  };
+}
+
+function monthLabel(m) {
+  if (!m) return '';
+  return new Date(2000, m - 1, 1).toLocaleDateString('en-US', { month: 'long' }).toUpperCase();
+}
+
+Object.assign(window, { TasksView });

@@ -1,7 +1,3 @@
-node_modules/
-*.db
-*.db-journal
-.env
-dist/
-build/
 .DS_Store
+node_modules/
+*.local

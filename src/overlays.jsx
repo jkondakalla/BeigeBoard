@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useT, FONT_HEAD, FONT_BODY, isoDate, localDate } from './theme';
+/* global React, useT, FONT_HEAD, FONT_BODY, isoDate, localDate */
+const { useState, useEffect, useRef } = React;
 
-// ── Film Grain ────────────────────────────────────────────────────────
-export function FilmGrain() {
+/* ── Film Grain ──────────────────────────────────────────────────── */
+function FilmGrain() {
   const T = useT();
   return (
     <svg
@@ -27,19 +27,19 @@ export function FilmGrain() {
   );
 }
 
-// ── Halation filter (SVG defs only — applied to the content wrapper) ──
-export function Halation() {
+/* ── Halation (SVG filter defs only) ─────────────────────────────── */
+function Halation() {
   return (
     <svg style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
       <defs>
-        <filter id="halation" x="-14%" y="-14%" width="128%" height="128%" colorInterpolationFilters="sRGB">
+        <filter id="halation" x="-8%" y="-8%" width="116%" height="116%" colorInterpolationFilters="sRGB">
           <feColorMatrix in="SourceGraphic" type="matrix"
             values="1 0 0 0  0
                     0 0 0 0  0
                     0 0 0 0  0
-                    2 -1 -1 0 -0.45"
+                    2 -1 -1 0 -0.5"
             result="warmOnly" />
-          <feGaussianBlur in="warmOnly" stdDeviation="7" result="bloom" />
+          <feGaussianBlur in="warmOnly" stdDeviation="5" result="bloom" />
           <feBlend in="SourceGraphic" in2="bloom" mode="screen" />
         </filter>
       </defs>
@@ -47,7 +47,7 @@ export function Halation() {
   );
 }
 
-// ── Film Artifacts ────────────────────────────────────────────────────
+/* ── Film Artifacts ──────────────────────────────────────────────── */
 let _aid = 0;
 function makeArtifact() {
   const id = ++_aid;
@@ -79,7 +79,7 @@ function makeArtifact() {
   };
 }
 
-export function Artifacts() {
+function Artifacts() {
   const [items, setItems] = useState([]);
   const timer = useRef(null);
 
@@ -112,29 +112,12 @@ export function Artifacts() {
   );
 }
 
-// ── CRT Lens Vignette ─────────────────────────────────────────────────
-export function Vignette() {
-  const T = useT();
-  const opacity = T.grainBlend === 'screen' ? 0.55 : 0.24;
-  return (
-    <div
-      aria-hidden="true"
-      style={{
-        position: 'fixed', inset: 0,
-        background: `radial-gradient(ellipse 80% 70% at 50% 50%, transparent 35%, rgba(0,0,0,${opacity}) 100%)`,
-        pointerEvents: 'none',
-        zIndex: 9991,
-      }}
-    />
-  );
-}
-
-// ── Scan Lines ────────────────────────────────────────────────────────
-export function ScanLines() {
+/* ── Scan Lines ──────────────────────────────────────────────────── */
+function ScanLines() {
   const T = useT();
   const lineColor = T.grainBlend === 'screen'
-    ? 'rgba(255,255,255,0.030)'
-    : 'rgba(0,0,0,0.028)';
+    ? 'rgba(255,255,255,0.018)'
+    : 'rgba(0,0,0,0.022)';
   return (
     <div
       aria-hidden="true"
@@ -149,78 +132,31 @@ export function ScanLines() {
   );
 }
 
-// ── Film-Strip Nav ────────────────────────────────────────────────────
-export function FilmStripNav({ view, setView }) {
-  const T = useT();
-  const PAGES = [['today', 'Today'], ['calendar', 'Cal'], ['tasks', 'Tasks']];
-  const cur = PAGES.findIndex(([k]) => k === view);
-
-  const perf = (
-    <div style={{
-      width: 6, height: 6, borderRadius: '50%',
-      border: `1px solid ${T.rule}`,
-      background: T.paper,
-      flexShrink: 0, margin: '3px 0',
-    }} />
-  );
-
-  return (
-    <div style={{
-      position: 'fixed', right: 12, top: '50%',
-      transform: 'translateY(-50%)',
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      background: T.paperDark,
-      border: `1px solid ${T.rule}`,
-      padding: '6px 5px',
-      zIndex: 300,
-    }}>
-      {perf}
-      {PAGES.map(([k, label], i) => (
-        <React.Fragment key={k}>
-          <button
-            onClick={() => setView(k)}
-            title={label}
-            style={{
-              width: 32, height: 24,
-              border: `1px solid ${i === cur ? T.red : T.rule}`,
-              background: i === cur ? T.redSoft : T.paper,
-              cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: i === cur ? `inset 0 0 12px ${T.red}44` : 'none',
-              transition: 'border-color 0.2s, background 0.2s, box-shadow 0.2s',
-            }}
-          >
-            <span style={{
-              fontFamily: FONT_BODY, fontSize: 7,
-              letterSpacing: '0.1em', textTransform: 'uppercase',
-              color: i === cur ? T.red : T.ink2,
-              transition: 'color 0.2s',
-              userSelect: 'none',
-            }}>{label}</span>
-          </button>
-          {perf}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
-// ── Dark Mode Toggle ──────────────────────────────────────────────────
-export function DarkModeToggle({ dark, onToggle }) {
+/* ── Dark Mode Toggle ────────────────────────────────────────────── */
+function DarkToggle({ dark, onToggle }) {
   const T = useT();
   return (
     <button
-      className="dark-toggle"
       onClick={onToggle}
       title={dark ? 'Switch to light' : 'Switch to dark'}
-      style={{ color: T.ink2 }}
-    >
-      {dark ? '◑' : '◐'}
-    </button>
+      style={{
+        position: 'fixed', bottom: 18, right: 18,
+        width: 24, height: 24, borderRadius: '50%',
+        border: `1px solid ${T.ink2}`, color: T.ink2,
+        background: 'transparent',
+        cursor: 'pointer', opacity: 0.18,
+        transition: 'opacity 0.3s', zIndex: 9998,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 12, lineHeight: 1,
+      }}
+      onMouseEnter={e => e.currentTarget.style.opacity = 0.9}
+      onMouseLeave={e => e.currentTarget.style.opacity = 0.18}
+    >{dark ? '◑' : '◐'}</button>
   );
 }
 
-// ── Startup audio (Web Audio API synthesis) ───────────────────────────
+
+/* ── Startup audio ───────────────────────────────────────────────── */
 function playStartupAudio() {
   let ctx;
   try { ctx = new (window.AudioContext || window.webkitAudioContext)(); }
@@ -233,12 +169,12 @@ function playStartupAudio() {
   thumpOsc.frequency.setValueAtTime(55, t);
   thumpOsc.frequency.exponentialRampToValueAtTime(18, t + 0.18);
   thumpGain.gain.setValueAtTime(0, t);
-  thumpGain.gain.linearRampToValueAtTime(0.45, t + 0.018);
+  thumpGain.gain.linearRampToValueAtTime(0.40, t + 0.018);
   thumpGain.gain.linearRampToValueAtTime(0, t + 0.22);
   thumpOsc.connect(thumpGain); thumpGain.connect(ctx.destination);
   thumpOsc.start(t); thumpOsc.stop(t + 0.25);
 
-  const fanBuf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate);
+  const fanBuf = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
   const fd = fanBuf.getChannelData(0);
   for (let i = 0; i < fd.length; i++) fd[i] = Math.random() * 2 - 1;
   const fan = ctx.createBufferSource();
@@ -246,15 +182,15 @@ function playStartupAudio() {
   const fanLp = ctx.createBiquadFilter();
   fanLp.type = 'lowpass';
   fanLp.frequency.setValueAtTime(60, t);
-  fanLp.frequency.linearRampToValueAtTime(210, t + 2.8);
+  fanLp.frequency.linearRampToValueAtTime(210, t + 2);
   const fanGain = ctx.createGain();
   fanGain.gain.setValueAtTime(0, t + 0.05);
-  fanGain.gain.linearRampToValueAtTime(0.07, t + 1.8);
-  fanGain.gain.linearRampToValueAtTime(0.04, t + 3.5);
+  fanGain.gain.linearRampToValueAtTime(0.06, t + 1.5);
+  fanGain.gain.linearRampToValueAtTime(0.02, t + 2.6);
   fan.connect(fanLp); fanLp.connect(fanGain); fanGain.connect(ctx.destination);
   fan.start(t);
 
-  [0.28, 0.52, 0.78, 1.05, 1.31].forEach((dt, i) => {
+  [0.28, 0.52, 0.78].forEach((dt, i) => {
     const ct = t + dt;
     const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.055), ctx.sampleRate);
     const d = buf.getChannelData(0);
@@ -264,26 +200,16 @@ function playStartupAudio() {
     src.buffer = buf;
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass'; bp.frequency.value = 900 + i * 180; bp.Q.value = 0.6;
-    const g = ctx.createGain(); g.gain.value = 0.28 - i * 0.03;
+    const g = ctx.createGain(); g.gain.value = 0.22 - i * 0.04;
     src.connect(bp); bp.connect(g); g.connect(ctx.destination);
     src.start(ct);
   });
 
-  const humOsc = ctx.createOscillator();
-  const humGain = ctx.createGain();
-  humOsc.type = 'sine'; humOsc.frequency.value = 50;
-  humGain.gain.setValueAtTime(0, t + 0.12);
-  humGain.gain.linearRampToValueAtTime(0.035, t + 0.7);
-  humGain.gain.linearRampToValueAtTime(0.01, t + 2.8);
-  humGain.gain.setValueAtTime(0, t + 3.1);
-  humOsc.connect(humGain); humGain.connect(ctx.destination);
-  humOsc.start(t); humOsc.stop(t + 3.2);
-
   return () => { try { ctx.close(); } catch (e) {} };
 }
 
-// ── CRT Intro ─────────────────────────────────────────────────────────
-export function CinematicIntro({ onDone }) {
+/* ── CRT Intro ───────────────────────────────────────────────────── */
+function CinematicIntro({ onDone }) {
   const [phase, setPhase] = useState(0);
   const audioCleanup = useRef(null);
   const today = isoDate(new Date());
@@ -293,9 +219,9 @@ export function CinematicIntro({ onDone }) {
   useEffect(() => {
     audioCleanup.current = playStartupAudio();
     const t1 = setTimeout(() => setPhase(1), 120);
-    const t2 = setTimeout(() => setPhase(2), 720);
-    const t3 = setTimeout(() => setPhase(3), 2200);
-    const t4 = setTimeout(onDone, 2800);
+    const t2 = setTimeout(() => setPhase(2), 700);
+    const t3 = setTimeout(() => setPhase(3), 2000);
+    const t4 = setTimeout(onDone, 2500);
     return () => {
       [t1, t2, t3, t4].forEach(clearTimeout);
       audioCleanup.current?.();
@@ -321,28 +247,25 @@ export function CinematicIntro({ onDone }) {
           clipPath: phase === 0 ? 'inset(50% 0 50% 0)' : undefined,
         }}
       />
-
       {phase >= 1 && (
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
           backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.18) 2px, rgba(0,0,0,0.18) 4px)',
         }} />
       )}
-
       {phase >= 1 && (
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
-          background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(190,130,20,0.12) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(190,130,20,0.07) 0%, transparent 70%)',
         }} />
       )}
-
       {phase >= 2 && (
         <div className="intro-title" style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
           <div style={{
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 600,
             fontSize: 60, color: '#C08800',
             letterSpacing: '-0.02em', lineHeight: 1,
-            textShadow: '0 0 30px rgba(192,136,0,0.60), 0 0 70px rgba(192,136,0,0.22), 0 0 120px rgba(200,57,26,0.14)',
+            textShadow: '0 0 35px rgba(192,136,0,0.45), 0 0 70px rgba(200,57,26,0.12)',
           }}>
             BeigeBoard
           </div>
@@ -351,10 +274,12 @@ export function CinematicIntro({ onDone }) {
             textTransform: 'uppercase', color: 'rgba(200,57,26,0.6)',
             marginTop: 13,
           }}>
-            {dateStr}
+            Calendar · {dateStr}
           </div>
         </div>
       )}
     </div>
   );
 }
+
+Object.assign(window, { FilmGrain, Halation, Artifacts, ScanLines, DarkToggle, CinematicIntro });
