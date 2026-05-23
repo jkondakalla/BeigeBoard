@@ -1,146 +1,115 @@
-/* TasksView — accordion workshop with drag-to-reparent.
+import React, { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react'
+import ReactDOM from 'react-dom'
+import { useT, FONT_HEAD, FONT_BODY, FONT_NUM, localDate, fmtTime, fmtWeekday, weekStart, halate } from '../lib/theme'
+import { getChildren, getDescendants, getAccent, getProgress } from '../lib/seed'
+import { Eyebrow, Checkbox, VUMeter, ColorPicker, Plate } from '../components/SharedComponents'
 
-   All year goals visible on one page. Each plate has an expand toggle.
-   When expanded, its children appear beneath. Multiple can be open at once.
+/* ── Internal drag context (reparent-only, separate from calendar DragProvider) ── */
+const TasksDragCtx = createContext<any>(null)
+const useTasksDrag = () => useContext(TasksDragCtx) || {}
 
-   ── Drag-drop ─────────────────────────────────────────────────────────
-   Every non-root item has a drag handle (⠿). Grab and drag to reparent.
-   Valid drop targets (matching the next scope up the hierarchy and not
-   a descendant of the dragged item) light up while hovering.
-
-     · month-milestone  drops onto a year goal
-     · week-theme        drops onto a month milestone
-     · day-task          drops onto a week theme
-     · subtask           drops onto a day task
-
-   While dragging, a small colored pill follows the cursor, halated in
-   the item's own accent.
-
-   No view-enter animations on this page (per user preference).
-
-   global: React, ReactDOM, useT, FONT_HEAD, FONT_BODY, FONT_NUM,
-           Eyebrow, Checkbox, VUMeter, TapeReel, Plate,
-           halate,
-           getChildren, getDescendants, getAccent, getProgress,
-           localDate, fmtTime, fmtWeekday, weekStart,
-           TODAY_ISO */
-
-const { useState, useEffect, useRef, useCallback, createContext, useContext } = React;
-
-/* ── Drag context ─────────────────────────────────────────────── */
-const DragCtx = createContext(null);
-const useDrag = () => useContext(DragCtx) || {};
-
-/* What scope is a valid PARENT for items of this scope? */
-const PARENT_OF = {
+const PARENT_OF: Record<string, string> = {
   month:   'year',
   week:    'month',
   day:     'week',
   subtask: 'day',
-};
-/* What kind is a valid PARENT for items of this scope? */
-function isValidDrop(dragItem, targetItem, items) {
-  if (!dragItem || !targetItem) return false;
-  if (dragItem.id === targetItem.id) return false;
-  /* Can't drop on a descendant (no circular trees) */
-  const descs = getDescendants(dragItem, items).map(d => d.id);
-  if (descs.includes(targetItem.id)) return false;
-  /* If already that parent, no-op */
-  if (dragItem.parent_id === targetItem.id) return false;
-  /* Match scope */
-  const want = PARENT_OF[dragItem.scope];
-  if (!want) return false;
-  if (want === 'day') {
-    return targetItem.kind === 'task' && targetItem.scope === 'day';
-  }
-  return targetItem.scope === want;
 }
 
-function TasksView({ items, today, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, focusedGoalId }) {
-  const T = useT();
-  const yearGoals = items.filter(it => it.scope === 'year');
-  const year = localDate(today).getFullYear();
+function isValidDrop(dragItem: any, targetItem: any, items: any[]): boolean {
+  if (!dragItem || !targetItem) return false
+  if (dragItem.id === targetItem.id) return false
+  const descs = getDescendants(dragItem, items).map((d: any) => d.id)
+  if (descs.includes(targetItem.id)) return false
+  if (dragItem.parent_id === targetItem.id) return false
+  const want = PARENT_OF[dragItem.scope]
+  if (!want) return false
+  if (want === 'day') {
+    return targetItem.kind === 'task' && targetItem.scope === 'day'
+  }
+  return targetItem.scope === want
+}
+
+export function TasksView({ items, today, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, focusedGoalId }: any) {
+  const T = useT()
+  const yearGoals = items.filter((it: any) => it.scope === 'year')
+  const year = localDate(today).getFullYear()
 
   const [expanded, setExpanded] = useState(() =>
-    focusedGoalId ? new Set([focusedGoalId]) : new Set());
-  const isOpen = id => expanded.has(id);
-  const toggle = id => setExpanded(s => {
-    const next = new Set(s);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
+    focusedGoalId ? new Set([focusedGoalId]) : new Set<number>())
+  const isOpen = (id: number) => expanded.has(id)
+  const toggle = (id: number) => setExpanded(s => {
+    const next = new Set(s)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
 
   const expandAll = () => {
-    const all = new Set();
-    items.forEach(it => {
-      if (it.scope === 'year' || it.scope === 'month' || it.scope === 'week') all.add(it.id);
-    });
-    setExpanded(all);
-  };
-  const collapseAll = () => setExpanded(new Set());
+    const all = new Set<number>()
+    items.forEach((it: any) => {
+      if (it.scope === 'year' || it.scope === 'month' || it.scope === 'week') all.add(it.id)
+    })
+    setExpanded(all)
+  }
+  const collapseAll = () => setExpanded(new Set<number>())
 
-  /* ── Drag state ────────────────────────────────────────────── */
-  const [drag, setDrag] = useState(null);
-  /* drag = { item, pos: {x,y}, hoverId } */
+  const [drag, setDrag] = useState<any>(null)
 
-  const beginDrag = useCallback((e, item) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDrag({ item, pos: { x: e.clientX, y: e.clientY }, hoverId: null });
-  }, []);
+  const beginDrag = useCallback((e: React.MouseEvent, item: any) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDrag({ item, pos: { x: e.clientX, y: e.clientY }, hoverId: null })
+  }, [])
 
   useEffect(() => {
-    if (!drag) return;
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'grabbing';
+    if (!drag) return
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'grabbing'
 
-    const onMove = e => {
-      const targets = document.querySelectorAll('[data-drop-id]');
-      let hoverId = null;
-      for (const t of targets) {
-        const r = t.getBoundingClientRect();
+    const onMove = (e: MouseEvent) => {
+      const targets = document.querySelectorAll('[data-drop-id]')
+      let hoverId: number | null = null
+      for (const t of Array.from(targets)) {
+        const r = t.getBoundingClientRect()
         if (e.clientX >= r.left && e.clientX <= r.right &&
-            e.clientY >= r.top && e.clientY <= r.bottom) {
-          const id = parseInt(t.getAttribute('data-drop-id'), 10);
-          const target = items.find(i => i.id === id);
+            e.clientY >= r.top  && e.clientY <= r.bottom) {
+          const id = parseInt(t.getAttribute('data-drop-id') || '', 10)
+          const target = items.find((i: any) => i.id === id)
           if (isValidDrop(drag.item, target, items)) {
-            hoverId = id;
-            break;
+            hoverId = id
+            break
           }
         }
       }
-      setDrag(d => d ? { ...d, pos: { x: e.clientX, y: e.clientY }, hoverId } : d);
-    };
+      setDrag((d: any) => d ? { ...d, pos: { x: e.clientX, y: e.clientY }, hoverId } : d)
+    }
 
     const onUp = () => {
-      setDrag(d => {
+      setDrag((d: any) => {
         if (d?.hoverId && onUpdateItem) {
-          onUpdateItem(d.item.id, { parent_id: d.hoverId });
-          /* Auto-expand the new parent so the user sees it land */
-          setExpanded(s => { const n = new Set(s); n.add(d.hoverId); return n; });
+          onUpdateItem(d.item.id, { parent_id: d.hoverId })
+          setExpanded(s => { const n = new Set(s); n.add(d.hoverId); return n })
         }
-        return null;
-      });
-    };
+        return null
+      })
+    }
 
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
     return () => {
-      document.body.style.userSelect = '';
-      document.body.style.cursor = '';
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-  }, [drag, items, onUpdateItem]);
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+  }, [drag, items, onUpdateItem])
 
-  const dragCtxValue = { drag, beginDrag };
+  const dragCtxValue = { drag, beginDrag }
 
   return (
-    <DragCtx.Provider value={dragCtxValue}>
+    <TasksDragCtx.Provider value={dragCtxValue}>
       <div style={{ flex: 1, overflowY: 'auto', background: T.paper }}>
         <div style={{ maxWidth: 920, margin: '0 auto', padding: '36px 40px 80px' }}>
 
-          {/* Header */}
           <header style={{
             paddingBottom: 20, marginBottom: 24, borderBottom: `1px solid ${T.rule}`,
             display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 18,
@@ -171,7 +140,7 @@ function TasksView({ items, today, onSelect, onToggle, onAddItem, onDelete, onUp
           </header>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {yearGoals.map((g, i) => (
+            {yearGoals.map((g: any, i: number) => (
               <YearNode
                 key={g.id} item={g} items={items} index={i + 1} today={today}
                 isOpen={isOpen} toggle={toggle}
@@ -184,7 +153,7 @@ function TasksView({ items, today, onSelect, onToggle, onAddItem, onDelete, onUp
             <AddPlate
               label="+ Add a year goal"
               placeholder="A goal you'd be proud of in December…"
-              onSubmit={title => onAddItem({
+              onSubmit={(title: string) => onAddItem({
                 kind: 'goal', scope: 'year', year,
                 title, accent: '#7A6050', source: 'bb',
               })}
@@ -194,22 +163,19 @@ function TasksView({ items, today, onSelect, onToggle, onAddItem, onDelete, onUp
       </div>
 
       {drag && <DragPill drag={drag} items={items} />}
-    </DragCtx.Provider>
-  );
+    </TasksDragCtx.Provider>
+  )
 }
 
-/* ────────────────────────────────────────────────────────────────
-   YEAR — large plate. Drop target for months.
-   ──────────────────────────────────────────────────────────────── */
-function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId }) {
-  const T = useT();
-  const { drag } = useDrag();
-  const accent = item.accent || T.red;
-  const prog = getProgress(item, items);
-  const months = getChildren(item, items).filter(c => c.scope === 'month');
-  const open = isOpen(item.id);
-  const isHovered = drag?.hoverId === item.id;
-  const isValid = drag && isValidDrop(drag.item, item, items);
+function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId }: any) {
+  const T = useT()
+  const { drag } = useTasksDrag()
+  const accent = item.accent || T.red
+  const prog = getProgress(item, items)
+  const months = getChildren(item, items).filter((c: any) => c.scope === 'month')
+  const open = isOpen(item.id)
+  const isHovered = drag?.hoverId === item.id
+  const isValid = drag && isValidDrop(drag.item, item, items)
 
   return (
     <article style={{ position: 'relative' }}>
@@ -222,7 +188,6 @@ function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggl
         transition: 'outline 0.12s, box-shadow 0.12s',
       }} dataDropId={item.id}>
         <div onClick={() => toggle(item.id)}>
-          {/* Top row */}
           <div style={{
             display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
             gap: 14, marginBottom: 10,
@@ -243,10 +208,9 @@ function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggl
               )}
             </div>
             <ExpandToggle open={open} count={months.length} childLabel="month" accent={accent}
-              onClick={(e) => { e.stopPropagation(); toggle(item.id); }} />
+              onClick={(e: React.MouseEvent) => { e.stopPropagation(); toggle(item.id) }} />
           </div>
 
-          {/* Title */}
           <h2 style={{
             fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 28,
             margin: 0, letterSpacing: '-0.025em', lineHeight: 1.12, color: T.ink,
@@ -268,7 +232,6 @@ function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggl
         </div>
       </Plate>
 
-      {/* Expanded children */}
       {open && (
         <div style={{
           marginTop: 10, marginLeft: 18,
@@ -276,7 +239,7 @@ function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggl
           boxShadow: `inset 4px 0 12px -8px ${accent}66`,
           display: 'flex', flexDirection: 'column', gap: 10,
         }}>
-          {months.map(m => (
+          {months.map((m: any) => (
             <MonthNode
               key={m.id} item={m} items={items} today={today}
               accent={accent}
@@ -290,7 +253,7 @@ function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggl
             childScope="month"
             accent={accent}
             placeholder="A month-level milestone…"
-            onSubmit={title => onAddItem({
+            onSubmit={(title: string) => onAddItem({
               kind: 'goal', scope: 'month',
               parent_id: item.id,
               title, accent, source: item.source || 'bb',
@@ -301,22 +264,19 @@ function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggl
         </div>
       )}
     </article>
-  );
+  )
 }
 
-/* ────────────────────────────────────────────────────────────────
-   MONTH — drop target for weeks. Draggable onto year goals.
-   ──────────────────────────────────────────────────────────────── */
-function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId }) {
-  const T = useT();
-  const { drag, beginDrag } = useDrag();
-  const prog = getProgress(item, items);
-  const weeks = getChildren(item, items).filter(c => c.scope === 'week');
-  const open = isOpen(item.id);
-  const ml = monthLabel(item.month);
-  const isHovered = drag?.hoverId === item.id;
-  const isValid = drag && isValidDrop(drag.item, item, items);
-  const isBeingDragged = drag?.item?.id === item.id;
+function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId }: any) {
+  const T = useT()
+  const { drag, beginDrag } = useTasksDrag()
+  const prog = getProgress(item, items)
+  const weeks = getChildren(item, items).filter((c: any) => c.scope === 'week')
+  const open = isOpen(item.id)
+  const ml = monthLabel(item.month)
+  const isHovered = drag?.hoverId === item.id
+  const isValid = drag && isValidDrop(drag.item, item, items)
+  const isBeingDragged = drag?.item?.id === item.id
 
   return (
     <div style={{ opacity: isBeingDragged ? 0.35 : 1 }}>
@@ -353,7 +313,7 @@ function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onTog
         <span style={{
           fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 13, color: T.ink2, flexShrink: 0,
         }}>{prog.total > 0 ? `${prog.done}/${prog.total}` : `${weeks.length}w`}</span>
-        <DragHandle onMouseDown={(e) => beginDrag(e, item)} />
+        <DragHandle onMouseDown={(e: React.MouseEvent) => beginDrag(e, item)} />
       </header>
 
       {open && (
@@ -362,7 +322,7 @@ function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onTog
           borderLeft: `1px solid ${accent}33`,
           display: 'flex', flexDirection: 'column', gap: 4,
         }}>
-          {weeks.map(w => (
+          {weeks.map((w: any) => (
             <WeekNode
               key={w.id} item={w} items={items} today={today}
               accent={accent}
@@ -376,7 +336,7 @@ function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onTog
             childScope="week"
             accent={accent}
             placeholder="A theme for one week…"
-            onSubmit={title => onAddItem({
+            onSubmit={(title: string) => onAddItem({
               kind: 'goal', scope: 'week',
               parent_id: item.id,
               title, accent, source: item.source || 'bb',
@@ -386,21 +346,18 @@ function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onTog
         </div>
       )}
     </div>
-  );
+  )
 }
 
-/* ────────────────────────────────────────────────────────────────
-   WEEK — drop target for day tasks. Draggable onto month milestones.
-   ──────────────────────────────────────────────────────────────── */
-function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId }) {
-  const T = useT();
-  const { drag, beginDrag } = useDrag();
-  const tasks = getChildren(item, items).filter(c => c.kind === 'task');
-  const open = isOpen(item.id);
-  const done = tasks.filter(t => t.completed).length;
-  const isHovered = drag?.hoverId === item.id;
-  const isValid = drag && isValidDrop(drag.item, item, items);
-  const isBeingDragged = drag?.item?.id === item.id;
+function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId }: any) {
+  const T = useT()
+  const { drag, beginDrag } = useTasksDrag()
+  const tasks = getChildren(item, items).filter((c: any) => c.kind === 'task')
+  const open = isOpen(item.id)
+  const done = tasks.filter((t: any) => t.completed).length
+  const isHovered = drag?.hoverId === item.id
+  const isValid = drag && isValidDrop(drag.item, item, items)
+  const isBeingDragged = drag?.item?.id === item.id
 
   return (
     <div style={{ opacity: isBeingDragged ? 0.35 : 1 }}>
@@ -434,7 +391,7 @@ function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onTogg
             fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: T.ink2, flexShrink: 0,
           }}>{done}/{tasks.length}</span>
         )}
-        <DragHandle onMouseDown={(e) => beginDrag(e, item)} small />
+        <DragHandle onMouseDown={(e: React.MouseEvent) => beginDrag(e, item)} small />
       </header>
 
       {open && (
@@ -443,7 +400,7 @@ function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onTogg
           marginLeft: 18, paddingLeft: 16,
           borderLeft: `1px solid ${accent}26`,
         }}>
-          {tasks.map(t => (
+          {tasks.map((t: any) => (
             <TaskRow
               key={t.id} item={t} items={items} depth={0}
               onSelect={onSelect} onToggle={onToggle}
@@ -454,7 +411,7 @@ function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onTogg
           <li>
             <AddTaskInline
               accent={accent}
-              onSubmit={title => onAddItem({
+              onSubmit={(title: string) => onAddItem({
                 kind: 'task', scope: 'day',
                 parent_id: item.id,
                 title, accent, source: item.source || 'bb',
@@ -465,48 +422,44 @@ function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onTogg
         </ul>
       )}
     </div>
-  );
+  )
 }
 
-/* ────────────────────────────────────────────────────────────────
-   DAY TASK / SUBTASK — drop target for subtasks; draggable.
-   ──────────────────────────────────────────────────────────────── */
-function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, accent: parentAccent }) {
-  const T = useT();
-  const { drag, beginDrag } = useDrag();
-  const accent = getAccent(item, items) || parentAccent || T.red;
-  const subs = getChildren(item, items);
-  const [expanded, setExpanded] = useState(true);
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(item.title);
-  const [showColors, setShowColors] = useState(false);
-  const inputRef = useRef(null);
-  const colorBtnRef = useRef(null);
-  const isSel = selectedId === item.id;
-  const isHovered = drag?.hoverId === item.id;
-  const isValid = drag && isValidDrop(drag.item, item, items);
-  const isBeingDragged = drag?.item?.id === item.id;
+function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, accent: parentAccent }: any) {
+  const T = useT()
+  const { drag, beginDrag } = useTasksDrag()
+  const accent = getAccent(item, items) || parentAccent || T.red
+  const subs = getChildren(item, items)
+  const [expanded, setExpanded] = useState(true)
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState(item.title)
+  const [showColors, setShowColors] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const isSel = selectedId === item.id
+  const isHovered = drag?.hoverId === item.id
+  const isValid = drag && isValidDrop(drag.item, item, items)
+  const isBeingDragged = drag?.item?.id === item.id
 
   const handleAdd = () => {
-    if (!draft.trim()) { setAdding(false); return; }
+    if (!draft.trim()) { setAdding(false); return }
     onAddItem({
       kind: 'task', scope: 'subtask',
       parent_id: item.id, due_date: item.due_date,
       title: draft.trim(), source: item.source || 'bb',
       accent,
-    });
-    setDraft('');
-    setTimeout(() => inputRef.current?.focus(), 50);
-  };
+    })
+    setDraft('')
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
 
   const commitTitle = () => {
-    const t = titleDraft.trim();
-    if (t && t !== item.title) onUpdateItem?.(item.id, { title: t });
-    else setTitleDraft(item.title);
-    setEditingTitle(false);
-  };
+    const t = titleDraft.trim()
+    if (t && t !== item.title) onUpdateItem?.(item.id, { title: t })
+    else setTitleDraft(item.title)
+    setEditingTitle(false)
+  }
 
   return (
     <li style={{ opacity: isBeingDragged ? 0.35 : 1 }}>
@@ -525,10 +478,10 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
           boxShadow: isHovered ? `0 0 12px ${accent}66` : 'none',
           transition: 'background 0.12s, outline 0.12s, box-shadow 0.12s',
           '--hover-bg': T.paperDark,
-        }}
+        } as any}
       >
         <button
-          onClick={e => { e.stopPropagation(); if (subs.length) setExpanded(v => !v); }}
+          onClick={e => { e.stopPropagation(); if (subs.length) setExpanded(v => !v) }}
           style={{
             background: 'none', border: 'none',
             color: subs.length ? T.ink2 : 'transparent',
@@ -541,12 +494,10 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
 
         <Checkbox id={item.id} completed={item.completed} onToggle={onToggle} size={depth === 0 ? 13 : 11} color={accent} />
 
-        {/* Color swatch dot — click to open picker */}
         {depth === 0 && (
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
-              ref={colorBtnRef}
-              onClick={e => { e.stopPropagation(); setShowColors(v => !v); }}
+              onClick={e => { e.stopPropagation(); setShowColors(v => !v) }}
               title="Set color"
               style={{
                 width: 10, height: 10,
@@ -561,7 +512,7 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
               <div style={{ position: 'absolute', left: 0, top: 16, zIndex: 200 }}>
                 <ColorPicker
                   current={item.accent}
-                  onChange={hex => onUpdateItem?.(item.id, { accent: hex })}
+                  onChange={(hex: string) => onUpdateItem?.(item.id, { accent: hex })}
                   onClose={() => setShowColors(false)}
                 />
               </div>
@@ -569,15 +520,14 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
           </div>
         )}
 
-        {/* Title — double-click to edit */}
         {editingTitle ? (
           <input
             autoFocus
             value={titleDraft}
             onChange={e => setTitleDraft(e.target.value)}
             onKeyDown={e => {
-              if (e.key === 'Enter') commitTitle();
-              if (e.key === 'Escape') { setTitleDraft(item.title); setEditingTitle(false); }
+              if (e.key === 'Enter') commitTitle()
+              if (e.key === 'Escape') { setTitleDraft(item.title); setEditingTitle(false) }
             }}
             onBlur={commitTitle}
             onClick={e => e.stopPropagation()}
@@ -591,7 +541,7 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
           />
         ) : (
           <span
-            onDoubleClick={e => { e.stopPropagation(); setTitleDraft(item.title); setEditingTitle(true); }}
+            onDoubleClick={e => { e.stopPropagation(); setTitleDraft(item.title); setEditingTitle(true) }}
             title="Double-click to edit"
             style={{
               flex: 1, minWidth: 0,
@@ -624,11 +574,11 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
         {subs.length > 0 && (
           <span style={{
             fontFamily: FONT_BODY, fontSize: 10, color: T.ink2, flexShrink: 0,
-          }}>{subs.filter(s => s.completed).length}/{subs.length}</span>
+          }}>{subs.filter((s: any) => s.completed).length}/{subs.length}</span>
         )}
 
         <button
-          onClick={e => { e.stopPropagation(); setAdding(true); setExpanded(true); }}
+          onClick={e => { e.stopPropagation(); setAdding(true); setExpanded(true) }}
           title="Add a smaller step"
           style={{
             background: 'none', border: 'none', color: T.ink3,
@@ -636,19 +586,19 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
           }}
         >+</button>
         <button
-          onClick={e => { e.stopPropagation(); onDelete?.(item.id); }}
+          onClick={e => { e.stopPropagation(); onDelete?.(item.id) }}
           style={{
             background: 'none', border: 'none', color: T.ink3,
             fontSize: 11, cursor: 'pointer', lineHeight: 1, padding: '0 2px', flexShrink: 0,
             opacity: 0.6,
           }}
         >✕</button>
-        <DragHandle onMouseDown={(e) => beginDrag(e, item)} small />
+        <DragHandle onMouseDown={(e: React.MouseEvent) => beginDrag(e, item)} small />
       </div>
 
       {expanded && (subs.length > 0 || adding) && (
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, marginLeft: 16, paddingLeft: 10, borderLeft: `1px solid ${T.ruleSoft}` }}>
-          {subs.map(s => (
+          {subs.map((s: any) => (
             <TaskRow
               key={s.id} item={s} items={items} depth={depth + 1}
               onSelect={onSelect} onToggle={onToggle}
@@ -667,10 +617,10 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
                 ref={inputRef} autoFocus value={draft}
                 onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => {
-                  if (e.key === 'Enter') handleAdd();
-                  if (e.key === 'Escape') { setAdding(false); setDraft(''); }
+                  if (e.key === 'Enter') handleAdd()
+                  if (e.key === 'Escape') { setAdding(false); setDraft('') }
                 }}
-                onBlur={() => { if (!draft.trim()) setAdding(false); }}
+                onBlur={() => { if (!draft.trim()) setAdding(false) }}
                 placeholder="A smaller step…"
                 style={{
                   flex: 1, background: 'transparent', border: 'none',
@@ -684,14 +634,11 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
         </ul>
       )}
     </li>
-  );
+  )
 }
 
-/* ────────────────────────────────────────────────────────────────
-   Drag handle + floating pill
-   ──────────────────────────────────────────────────────────────── */
-function DragHandle({ onMouseDown, small }) {
-  const T = useT();
+function DragHandle({ onMouseDown, small }: any) {
+  const T = useT()
   return (
     <span
       onMouseDown={onMouseDown}
@@ -707,20 +654,18 @@ function DragHandle({ onMouseDown, small }) {
         opacity: 0.55,
         transition: 'opacity 0.15s, color 0.15s',
       }}
-      onMouseEnter={e => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = T.ink2; }}
-      onMouseLeave={e => { e.currentTarget.style.opacity = 0.55; e.currentTarget.style.color = T.ink3; }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; (e.currentTarget as HTMLElement).style.color = T.ink2 }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '0.55'; (e.currentTarget as HTMLElement).style.color = T.ink3 }}
     >⠿</span>
-  );
+  )
 }
 
-function DragPill({ drag, items }) {
-  const T = useT();
-  const item = drag.item;
-  const accent = getAccent(item, items) || T.red;
-  const valid = drag.hoverId !== null;
+function DragPill({ drag, items }: any) {
+  const T = useT()
+  const item = drag.item
+  const accent = getAccent(item, items) || T.red
+  const valid = drag.hoverId !== null
 
-  /* Portal to body — escapes the parent filter:url(#halation) container so
-     position:fixed measures against the viewport. */
   const pill = (
     <div style={{
       position: 'fixed',
@@ -759,17 +704,13 @@ function DragPill({ drag, items }) {
         }}>release →</span>
       )}
     </div>
-  );
+  )
 
-  return ReactDOM.createPortal(pill, document.body);
+  return ReactDOM.createPortal(pill, document.body)
 }
 
-/* ────────────────────────────────────────────────────────────────
-   Atoms
-   ──────────────────────────────────────────────────────────────── */
-
-function ExpandToggle({ open, count, childLabel, accent, onClick }) {
-  const T = useT();
+function ExpandToggle({ open, count, childLabel, accent, onClick }: any) {
+  const T = useT()
   return (
     <button
       onClick={onClick}
@@ -790,11 +731,11 @@ function ExpandToggle({ open, count, childLabel, accent, onClick }) {
       <Caret open={open} color={open ? accent : T.ink2} small />
       {count > 0 ? `${count} ${childLabel}${count === 1 ? '' : 's'}` : 'open'}
     </button>
-  );
+  )
 }
 
-function Caret({ open, color, small }) {
-  const sz = small ? 7 : 9;
+function Caret({ open, color, small }: any) {
+  const sz = small ? 7 : 9
   return (
     <span style={{
       display: 'inline-block', fontSize: sz, lineHeight: 1,
@@ -803,19 +744,19 @@ function Caret({ open, color, small }) {
       transition: 'transform 0.15s',
       width: sz + 2,
     }}>▶</span>
-  );
+  )
 }
 
-function AddPlate({ label, placeholder, onSubmit }) {
-  const T = useT();
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState('');
+function AddPlate({ label, placeholder, onSubmit }: any) {
+  const T = useT()
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState('')
 
   const handle = () => {
-    if (!draft.trim()) { setAdding(false); return; }
-    onSubmit(draft.trim());
-    setDraft(''); setAdding(false);
-  };
+    if (!draft.trim()) { setAdding(false); return }
+    onSubmit(draft.trim())
+    setDraft(''); setAdding(false)
+  }
 
   if (!adding) {
     return (
@@ -829,7 +770,7 @@ function AddPlate({ label, placeholder, onSubmit }) {
           width: '100%', textAlign: 'left',
         }}
       >{label}</button>
-    );
+    )
   }
 
   return (
@@ -842,8 +783,8 @@ function AddPlate({ label, placeholder, onSubmit }) {
         autoFocus value={draft}
         onChange={e => setDraft(e.target.value)}
         onKeyDown={e => {
-          if (e.key === 'Enter') handle();
-          if (e.key === 'Escape') { setAdding(false); setDraft(''); }
+          if (e.key === 'Enter') handle()
+          if (e.key === 'Escape') { setAdding(false); setDraft('') }
         }}
         placeholder={placeholder}
         style={{
@@ -859,19 +800,19 @@ function AddPlate({ label, placeholder, onSubmit }) {
         boxShadow: halate(T.red, 'mid'),
       }}>Stamp →</button>
     </div>
-  );
+  )
 }
 
-function AddSubtle({ accent, placeholder, onSubmit, childScope }) {
-  const T = useT();
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState('');
+function AddSubtle({ accent, placeholder, onSubmit, childScope }: any) {
+  const T = useT()
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState('')
 
   const handle = () => {
-    if (!draft.trim()) { setAdding(false); return; }
-    onSubmit(draft.trim());
-    setDraft(''); setAdding(false);
-  };
+    if (!draft.trim()) { setAdding(false); return }
+    onSubmit(draft.trim())
+    setDraft(''); setAdding(false)
+  }
 
   if (!adding) {
     return (
@@ -883,10 +824,10 @@ function AddSubtle({ accent, placeholder, onSubmit, childScope }) {
           color: T.ink3, cursor: 'pointer',
           padding: '6px 12px', textAlign: 'left',
           textDecoration: 'underline', textDecorationStyle: 'dotted',
-          textUnderlineOffset: 3, textDecorationColor: (accent || T.ink2) + '70',
+          textUnderlineOffset: 3, textDecorationColor: ((accent || T.ink2) + '70') as any,
         }}
       >+ break down further</button>
-    );
+    )
   }
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px' }}>
@@ -901,10 +842,10 @@ function AddSubtle({ accent, placeholder, onSubmit, childScope }) {
         autoFocus value={draft}
         onChange={e => setDraft(e.target.value)}
         onKeyDown={e => {
-          if (e.key === 'Enter') handle();
-          if (e.key === 'Escape') { setAdding(false); setDraft(''); }
+          if (e.key === 'Enter') handle()
+          if (e.key === 'Escape') { setAdding(false); setDraft('') }
         }}
-        onBlur={() => { if (!draft.trim()) setAdding(false); }}
+        onBlur={() => { if (!draft.trim()) setAdding(false) }}
         placeholder={placeholder}
         style={{
           flex: 1, background: 'transparent', border: 'none',
@@ -914,19 +855,19 @@ function AddSubtle({ accent, placeholder, onSubmit, childScope }) {
         }}
       />
     </div>
-  );
+  )
 }
 
-function AddTaskInline({ accent, onSubmit }) {
-  const T = useT();
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState('');
+function AddTaskInline({ accent, onSubmit }: any) {
+  const T = useT()
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState('')
 
   const handle = () => {
-    if (!draft.trim()) { setAdding(false); return; }
-    onSubmit(draft.trim());
-    setDraft('');
-  };
+    if (!draft.trim()) { setAdding(false); return }
+    onSubmit(draft.trim())
+    setDraft('')
+  }
 
   if (!adding) {
     return (
@@ -940,7 +881,7 @@ function AddTaskInline({ accent, onSubmit }) {
           color: T.ink3, cursor: 'pointer',
         }}
       >+ Add a concrete task</button>
-    );
+    )
   }
   return (
     <div style={{
@@ -954,8 +895,8 @@ function AddTaskInline({ accent, onSubmit }) {
         autoFocus value={draft}
         onChange={e => setDraft(e.target.value)}
         onKeyDown={e => {
-          if (e.key === 'Enter') handle();
-          if (e.key === 'Escape') { setAdding(false); setDraft(''); }
+          if (e.key === 'Enter') handle()
+          if (e.key === 'Escape') { setAdding(false); setDraft('') }
         }}
         placeholder="A concrete task…"
         style={{
@@ -972,21 +913,19 @@ function AddTaskInline({ accent, onSubmit }) {
         boxShadow: halate(accent || T.red, 'mid'),
       }}>Add</button>
     </div>
-  );
+  )
 }
 
-function miniBtn(T) {
+function miniBtn(T: any) {
   return {
     background: 'transparent', border: `1px solid ${T.rule}`,
     fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.18em',
-    textTransform: 'uppercase', color: T.ink2, cursor: 'pointer',
+    textTransform: 'uppercase' as const, color: T.ink2, cursor: 'pointer',
     padding: '5px 11px',
-  };
+  }
 }
 
-function monthLabel(m) {
-  if (!m) return '';
-  return new Date(2000, m - 1, 1).toLocaleDateString('en-US', { month: 'long' }).toUpperCase();
+function monthLabel(m: number) {
+  if (!m) return ''
+  return new Date(2000, m - 1, 1).toLocaleDateString('en-US', { month: 'long' }).toUpperCase()
 }
-
-Object.assign(window, { TasksView });

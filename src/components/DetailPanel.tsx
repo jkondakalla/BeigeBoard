@@ -1,34 +1,40 @@
-/* DetailPanel — right-side context for whatever is selected.
+import React, { useState, useEffect, useRef } from 'react'
+import { useT, FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate, halate } from '../lib/theme'
+import { getAncestors, getChildren, getAccent, getProgress } from '../lib/seed'
+import { Eyebrow, Checkbox } from './SharedComponents'
 
-   Same shell for goals (year/month/week) and tasks (day/subtask) and events.
-   For goals, shows the LADDER UP (this is what this is part of), the breakdown
-   beneath, and an "open in workshop" affordance.
-   For tasks, shows the ladder + time + notes + status.
+export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedGoalId }: any) {
+  const T = useT()
+  const [titleEditing, setTitleEditing] = useState(false)
+  const [titleVal, setTitleVal]         = useState('')
+  const titleInputRef = useRef<HTMLInputElement>(null)
 
-   global: React, useT, FONT_HEAD, FONT_BODY, FONT_NUM,
-           Eyebrow, Checkbox, sourceOf, fmtTime, fmtFull, localDate,
-           getAncestors, getChildren, getAccent, getProgress
-*/
+  useEffect(() => {
+    setTitleEditing(false)
+    setTitleVal(event?.title || '')
+  }, [event?.id])
 
-function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedGoalId }) {
-  const T = useT();
-  if (!event) return null;
+  useEffect(() => {
+    if (titleEditing && titleInputRef.current) titleInputRef.current.focus()
+  }, [titleEditing])
 
-  const accent = (items && getAccent(event, items)) || (event.source && sourceOf(event.source).hex) || T.red;
-  const isTask = event.kind === 'task';
-  const isGoal = event.kind === 'goal';
-  const isEvent= event.kind === 'event';
-  const ancestors = items ? getAncestors(event, items) : [];
-  const children  = items ? getChildren(event, items)  : [];
-  const prog      = items ? getProgress(event, items)  : { done: 0, total: 0, pct: 0 };
+  if (!event) return null
 
-  const scopeLabel = {
+  const accent = (items && getAccent(event, items)) || (event.source && sourceOf(event.source).hex) || T.red
+  const isTask = event.kind === 'task'
+  const isGoal = event.kind === 'goal'
+  const isEvent= event.kind === 'event'
+  const ancestors = items ? getAncestors(event, items) : []
+  const children  = items ? getChildren(event, items)  : []
+  const prog      = items ? getProgress(event, items)  : { done: 0, total: 0, pct: 0 }
+
+  const scopeLabel = ({
     year:    'Year goal',
     month:   'Month milestone',
     week:    'Week theme',
     day:     'Day task',
     subtask: 'Smaller step',
-  }[event.scope] || (isGoal ? 'Goal' : isEvent ? 'Event' : 'Task');
+  } as any)[event.scope] || (isGoal ? 'Goal' : isEvent ? 'Event' : 'Task')
 
   return (
     <aside className="panel-enter" style={{
@@ -37,7 +43,6 @@ function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, 
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
     }}>
-      {/* Accent band */}
       <div style={{
         background: accent, color: 'rgba(255,255,255,0.95)',
         padding: '16px 22px 18px',
@@ -59,14 +64,45 @@ function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, 
             }}
           >✕</button>
         </div>
-        <div style={{
-          fontFamily: FONT_HEAD,
-          fontStyle: isGoal && event.scope !== 'year' ? 'italic' : 'normal',
-          fontWeight: 500, fontSize: event.scope === 'year' ? 26 : 22,
-          lineHeight: 1.2, letterSpacing: '-0.015em',
-          textDecoration: event.completed ? 'line-through' : 'none',
-          opacity: event.completed ? 0.7 : 1,
-        }}>{event.title}</div>
+        {titleEditing ? (
+          <input
+            ref={titleInputRef}
+            value={titleVal}
+            onChange={e => setTitleVal(e.target.value)}
+            onBlur={() => {
+              const v = titleVal.trim()
+              if (v && v !== event.title) onUpdateItem?.(event.id, { title: v })
+              else setTitleVal(event.title)
+              setTitleEditing(false)
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+              if (e.key === 'Escape') { setTitleVal(event.title); setTitleEditing(false) }
+            }}
+            style={{
+              background: 'transparent', border: 'none',
+              borderBottom: '1px solid rgba(255,255,255,0.45)',
+              fontFamily: FONT_HEAD, fontWeight: 500,
+              fontSize: event.scope === 'year' ? 26 : 22,
+              color: 'rgba(255,255,255,0.95)', outline: 'none',
+              padding: '2px 0 6px', width: '100%', letterSpacing: '-0.015em',
+            }}
+          />
+        ) : (
+          <div
+            onClick={() => { setTitleVal(event.title); setTitleEditing(true) }}
+            title="Click to edit title"
+            style={{
+              fontFamily: FONT_HEAD,
+              fontStyle: isGoal && event.scope !== 'year' ? 'italic' : 'normal',
+              fontWeight: 500, fontSize: event.scope === 'year' ? 26 : 22,
+              lineHeight: 1.2, letterSpacing: '-0.015em',
+              textDecoration: event.completed ? 'line-through' : 'none',
+              opacity: event.completed ? 0.7 : 1,
+              cursor: 'text',
+            }}
+          >{event.title}</div>
+        )}
         {event.target && (
           <div style={{
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12.5,
@@ -76,12 +112,11 @@ function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, 
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px 24px' }}>
-        {/* Ladder up — most important block. Always shown first if it exists. */}
         {ancestors.length > 0 && (
           <Field label="Part of">
             <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {ancestors.slice().reverse().map((a, i) => {
-                const aAccent = getAccent(a, items);
+              {ancestors.slice().reverse().map((a: any, i: number) => {
+                const aAccent = getAccent(a, items)
                 return (
                   <li key={a.id} style={{
                     display: 'flex', alignItems: 'center', gap: 8,
@@ -101,15 +136,14 @@ function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, 
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>{a.title}</span>
                   </li>
-                );
+                )
               })}
             </ol>
           </Field>
         )}
 
-        {/* When — always shown for tasks; editable */}
-        {(isTask || event.due_date || event.scheduled_time) && (
-          <WhenField event={event} isTask={isTask} onUpdateItem={onUpdateItem} />
+        {(isTask || isEvent || event.due_date || event.scheduled_time) && (
+          <WhenField event={event} isTask={isTask} isEvent={isEvent} onUpdateItem={onUpdateItem} />
         )}
 
         {event.location && (
@@ -126,7 +160,7 @@ function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, 
               <span style={{
                 fontFamily: FONT_NUM, fontStyle: 'italic',
                 fontSize: 30, color: accent, lineHeight: 1,
-                textShadow: window.halate(accent, 'mid'),
+                textShadow: halate(accent, 'mid'),
               }}>{String(event.attendees).padStart(2, '0')}</span>
               <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: T.ink2 }}>
                 people
@@ -154,12 +188,11 @@ function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, 
           </Field>
         )}
 
-        {/* Breakdown — for goals with children */}
         {isGoal && (
           <Field label={`Breakdown · ${prog.total > 0 ? `${prog.done}/${prog.total}` : 'open'}`}>
             {prog.total > 0 && (
               <div style={{ height: 2, background: T.ruleSoft, marginBottom: 12 }}>
-                <div className="progress-fill" style={{ height: '100%', width: `${prog.pct}%`, background: accent }} />
+                <div style={{ height: '100%', width: `${prog.pct}%`, background: accent }} />
               </div>
             )}
             {children.length === 0 ? (
@@ -169,7 +202,7 @@ function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, 
               }}>Not broken down yet. Open in the workshop to add steps.</div>
             ) : (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {children.slice(0, 6).map(c => (
+                {children.slice(0, 6).map((c: any) => (
                   <li key={c.id} style={{
                     display: 'flex', alignItems: 'center', gap: 8,
                     padding: '6px 0', borderBottom: `1px solid ${T.ruleSoft}`,
@@ -196,8 +229,8 @@ function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, 
 
             <button
               onClick={() => {
-                if (event.scope === 'year') setFocusedGoalId?.(event.id);
-                setView?.('tasks');
+                if (event.scope === 'year') setFocusedGoalId?.(event.id)
+                setView?.('tasks')
               }}
               className="btn-action"
               style={{
@@ -234,7 +267,6 @@ function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, 
           </Field>
         )}
 
-        {/* Actions */}
         <div style={{
           display: 'flex', gap: 8, marginTop: 24,
           paddingTop: 16, borderTop: `1px solid ${T.ruleSoft}`,
@@ -253,53 +285,60 @@ function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, 
         </div>
       </div>
     </aside>
-  );
+  )
 }
 
-/* ── WhenField — editable date + time scheduling ──────────────── */
-function WhenField({ event, isTask, onUpdateItem }) {
-  const T = useT();
-  const { useState: _useState } = React;
-  const [editing, setEditing] = _useState(false);
-  const [date,  setDate]  = _useState(event.due_date       || '');
-  const [start, setStart] = _useState(event.scheduled_time || '');
-  const [end,   setEnd]   = _useState(event.scheduled_end  || '');
+function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
+  const T = useT()
+  const canEdit = (isTask || isEvent) && !!onUpdateItem
+  const isAllDayEvent = isEvent && !event.scheduled_time
 
-  /* Keep local state in sync when a different item is selected */
-  React.useEffect(() => {
-    setDate(event.due_date       || '');
-    setStart(event.scheduled_time || '');
-    setEnd(event.scheduled_end   || '');
-    setEditing(false);
-  }, [event.id]);
+  const [editing, setEditing] = useState(false)
+  const [date,    setDate]    = useState(event.due_date       || '')
+  const [endDate, setEndDate] = useState(event.end_date       || '')
+  const [start,   setStart]   = useState(event.scheduled_time || '')
+  const [end,     setEnd]     = useState(event.scheduled_end  || '')
+
+  useEffect(() => {
+    setDate(event.due_date       || '')
+    setEndDate(event.end_date    || '')
+    setStart(event.scheduled_time || '')
+    setEnd(event.scheduled_end   || '')
+    setEditing(false)
+  }, [event.id])
 
   const save = () => {
-    onUpdateItem?.(event.id, {
-      due_date:       date  || null,
-      scheduled_time: start || null,
-      scheduled_end:  end   || null,
-    });
-    setEditing(false);
-  };
+    const updates: any = {
+      due_date:       date    || null,
+      scheduled_time: start   || null,
+      scheduled_end:  end     || null,
+    }
+    if (isAllDayEvent || (!start && endDate)) {
+      updates.end_date = (endDate && endDate !== date) ? endDate : null
+    }
+    onUpdateItem?.(event.id, updates)
+    setEditing(false)
+  }
 
   const clear = () => {
-    onUpdateItem?.(event.id, { due_date: null, scheduled_time: null, scheduled_end: null });
-    setDate(''); setStart(''); setEnd('');
-    setEditing(false);
-  };
+    onUpdateItem?.(event.id, { due_date: null, scheduled_time: null, scheduled_end: null, end_date: null })
+    setDate(''); setEndDate(''); setStart(''); setEnd('')
+    setEditing(false)
+  }
 
-  const inputSty = {
-    background: 'transparent',
-    border: `1px solid ${T.rule}`,
+  const inputSty: any = {
+    background: 'transparent', border: `1px solid ${T.rule}`,
     fontFamily: FONT_BODY, fontSize: 11,
     color: T.ink, padding: '4px 6px', outline: 'none',
-  };
+  }
+
+  const isMultiDay = event.end_date && event.end_date !== event.due_date
 
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
         <Eyebrow>When</Eyebrow>
-        {isTask && !editing && onUpdateItem && (
+        {canEdit && !editing && (
           <button onClick={() => setEditing(true)} style={{
             background: 'none', border: 'none',
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
@@ -311,12 +350,23 @@ function WhenField({ event, isTask, onUpdateItem }) {
 
       {editing ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputSty} />
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input type="time" value={start} onChange={e => setStart(e.target.value)} placeholder="Start" style={{ ...inputSty, flex: 1 }} />
-            <span style={{ color: T.ink2, alignSelf: 'center', fontSize: 11 }}>–</span>
-            <input type="time" value={end}   onChange={e => setEnd(e.target.value)}   placeholder="End"   style={{ ...inputSty, flex: 1 }} />
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inputSty, flex: 1 }} />
+            {(isAllDayEvent || (!start && !end)) && (
+              <>
+                <span style={{ color: T.ink3, fontSize: 11 }}>→</span>
+                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                  placeholder="End date" style={{ ...inputSty, flex: 1 }} />
+              </>
+            )}
           </div>
+          {!isAllDayEvent && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input type="time" value={start} onChange={e => setStart(e.target.value)} placeholder="Start" style={{ ...inputSty, flex: 1 }} />
+              <span style={{ color: T.ink2, alignSelf: 'center', fontSize: 11 }}>–</span>
+              <input type="time" value={end}   onChange={e => setEnd(e.target.value)}   placeholder="End"   style={{ ...inputSty, flex: 1 }} />
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
             <button onClick={save} className="btn-action" style={{
               flex: 1, background: T.red, color: T.paper, border: 'none',
@@ -338,10 +388,12 @@ function WhenField({ event, isTask, onUpdateItem }) {
           </div>
         </div>
       ) : (event.due_date || event.scheduled_time) ? (
-        <div onClick={() => isTask && onUpdateItem && setEditing(true)} style={{ cursor: isTask && onUpdateItem ? 'pointer' : 'default' }}>
+        <div onClick={() => canEdit && setEditing(true)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>
           {event.due_date && (
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 16, color: T.ink, lineHeight: 1.3 }}>
-              {fmtFull(event.due_date)}
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 15, color: T.ink, lineHeight: 1.4 }}>
+              {isMultiDay
+                ? `${fmtFull(event.due_date)} → ${fmtFull(event.end_date)}`
+                : fmtFull(event.due_date)}
             </div>
           )}
           {event.scheduled_time && (
@@ -354,25 +406,28 @@ function WhenField({ event, isTask, onUpdateItem }) {
               Anytime · tap edit to schedule
             </div>
           )}
+          {isAllDayEvent && !isMultiDay && (
+            <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: T.ink3, marginTop: 3 }}>
+              All day
+            </div>
+          )}
         </div>
-      ) : isTask ? (
-        <button onClick={() => onUpdateItem && setEditing(true)} style={{
+      ) : canEdit ? (
+        <button onClick={() => setEditing(true)} style={{
           background: 'transparent', border: `1px dashed ${T.rule}`,
           fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
           color: T.ink2, cursor: 'pointer', padding: '8px 12px', width: '100%', textAlign: 'left',
-        }}>+ Schedule this task</button>
+        }}>+ Schedule this {isEvent ? 'event' : 'task'}</button>
       ) : null}
     </div>
-  );
+  )
 }
 
-function Field({ label, children }) {
+function Field({ label, children }: any) {
   return (
     <div style={{ marginBottom: 18 }}>
       <Eyebrow style={{ marginBottom: 6 }}>{label}</Eyebrow>
       {children}
     </div>
-  );
+  )
 }
-
-Object.assign(window, { DetailPanel });

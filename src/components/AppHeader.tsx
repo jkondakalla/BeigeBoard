@@ -1,32 +1,26 @@
-/* AppHeader — single bar across the top.
-   Left: BeigeBoard wordmark + tape counter (year · week)
-   Center: cassette transport — TODAY · WEEK · TASKS
-   Right: live time readout + connected-accounts indicator
-
-   global: React, useT, FONT_HEAD, FONT_BODY, FONT_NUM,
-           localDate, sourceOf,
-           TapeReel, TimeReadout, RecLamp */
-const { useState, useEffect } = React;
+import React, { useState, useEffect } from 'react'
+import { useT, FONT_HEAD, FONT_BODY, FONT_NUM, localDate, sourceOf } from '../lib/theme'
+import { TapeReel, TimeReadout } from './SharedComponents'
 
 const NAV_TABS = [
   { id: 'today',    label: 'Today',    sub: 'now' },
   { id: 'week',     label: 'Week',     sub: '7 days' },
   { id: 'calendar', label: 'Calendar', sub: 'month' },
   { id: 'tasks',    label: 'Tasks',    sub: 'workshop' },
-];
+]
 
-function AppHeader({ view, setView, today, onConnectClick, accounts }) {
-  const T = useT();
-  const d    = localDate(today);
-  const week = Math.ceil(((d - new Date(d.getFullYear(), 0, 0)) / 86400000) / 7);
-  const [scrolled, setScrolled] = useState(false);
-  const connected = accounts.filter(a => a.connected).length;
+export function AppHeader({ view, setView, today, onConnectClick, accounts }: any) {
+  const T = useT()
+  const d    = localDate(today)
+  const week = Math.ceil(((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 86400000) / 7)
+  const [scrolled, setScrolled] = useState(false)
+  const connected = accounts.filter((a: any) => a.connected).length
 
   useEffect(() => {
-    const onScroll = e => setScrolled((e.target?.scrollTop || 0) > 4);
-    document.addEventListener('scroll', onScroll, { passive: true, capture: true });
-    return () => document.removeEventListener('scroll', onScroll, { capture: true });
-  }, []);
+    const onScroll = (e: Event) => setScrolled(((e.target as any)?.scrollTop || 0) > 4)
+    document.addEventListener('scroll', onScroll, { passive: true, capture: true })
+    return () => document.removeEventListener('scroll', onScroll, { capture: true })
+  }, [])
 
   return (
     <header style={{
@@ -43,7 +37,6 @@ function AppHeader({ view, setView, today, onConnectClick, accounts }) {
       gap: 18,
       alignItems: 'center',
     }}>
-      {/* Left: tape reels + wordmark + tape counter */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
         <TapeReel size={28} color={T.yellow} spinning />
         <span style={{
@@ -55,10 +48,8 @@ function AppHeader({ view, setView, today, onConnectClick, accounts }) {
         <TapeCounter year={d.getFullYear()} week={week} />
       </div>
 
-      {/* Center: tape-deck transport */}
       <TapeDeck view={view} setView={setView} />
 
-      {/* Right: live readout + connected indicator */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 14 }}>
         <TimeReadout />
         <span style={{ width: 1, height: 14, background: T.rule, opacity: 0.6 }} />
@@ -73,7 +64,7 @@ function AppHeader({ view, setView, today, onConnectClick, accounts }) {
           }}
         >
           <span style={{ display: 'inline-flex', gap: 3 }}>
-            {accounts.slice(0, 4).map(a => (
+            {accounts.slice(0, 4).map((a: any) => (
               <span key={a.id} style={{
                 width: 7, height: 7, borderRadius: '50%',
                 background: a.connected ? sourceOf(a.id).hex : T.ruleSoft,
@@ -86,23 +77,18 @@ function AppHeader({ view, setView, today, onConnectClick, accounts }) {
         </button>
       </div>
     </header>
-  );
+  )
 }
 
-/* ── Tape counter — small mechanical readout ──────────────────────── */
-function TapeCounter({ year, week }) {
-  const T = useT();
+function TapeCounter({ year, week }: { year: number; week: number }) {
+  const T = useT()
   return (
     <div style={{
       display: 'inline-flex', alignItems: 'center', gap: 8,
       padding: '4px 12px',
       background: 'rgba(0,0,0,0.45)',
       border: `1px solid ${T.rule}`,
-      boxShadow: `
-        inset 0 2px 4px rgba(0,0,0,0.5),
-        inset 0 -1px 0 rgba(255,255,255,0.05),
-        0 1px 0 rgba(255,255,255,0.06)
-      `,
+      boxShadow: `inset 0 2px 4px rgba(0,0,0,0.5), inset 0 -1px 0 rgba(255,255,255,0.05), 0 1px 0 rgba(255,255,255,0.06)`,
     }}>
       <span style={{
         fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: T.ink2,
@@ -115,12 +101,11 @@ function TapeCounter({ year, week }) {
         textShadow: `0 0 10px ${T.yellow}99`,
       }}>W{String(week).padStart(2, '0')}</span>
     </div>
-  );
+  )
 }
 
-/* ── Tape-deck transport — the navigation ─────────────────────────── */
-function TapeDeck({ view, setView }) {
-  const T = useT();
+function TapeDeck({ view, setView }: any) {
+  const T = useT()
   return (
     <nav
       role="tablist"
@@ -130,11 +115,7 @@ function TapeDeck({ view, setView }) {
         background: 'rgba(0,0,0,0.55)',
         border: `1px solid ${T.rule}`,
         padding: 3,
-        boxShadow: `
-          inset 0 2px 4px rgba(0,0,0,0.35),
-          inset 0 -1px 0 rgba(255,255,255,0.06),
-          0 1px 0 rgba(255,255,255,0.06)
-        `,
+        boxShadow: `inset 0 2px 4px rgba(0,0,0,0.35), inset 0 -1px 0 rgba(255,255,255,0.06), 0 1px 0 rgba(255,255,255,0.06)`,
       }}
     >
       {NAV_TABS.map(tab => (
@@ -146,20 +127,19 @@ function TapeDeck({ view, setView }) {
         />
       ))}
     </nav>
-  );
+  )
 }
 
-function TapeButton({ tab, active, onClick }) {
-  const T = useT();
-  const [hover, setHover] = useState(false);
+function TapeButton({ tab, active, onClick }: any) {
+  const T = useT()
+  const [hover, setHover] = useState(false)
 
-  const face = active ? '#1F1810' : '#15110A';
-  const labelColor = active ? T.ink : T.ink2;
-  const labelShadow = active ? `0 0 14px ${T.red}66` : 'none';
-
+  const face = active ? '#1F1810' : '#15110A'
+  const labelColor = active ? T.ink : T.ink2
+  const labelShadow = active ? `0 0 14px ${T.red}66` : 'none'
   const press = active
     ? `inset 0 2px 4px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.04)`
-    : `inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -2px 2px rgba(0,0,0,0.18), 0 1px 0 rgba(0,0,0,0.18)`;
+    : `inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -2px 2px rgba(0,0,0,0.18), 0 1px 0 rgba(0,0,0,0.18)`
 
   return (
     <button
@@ -181,7 +161,6 @@ function TapeButton({ tab, active, onClick }) {
         transition: 'background 0.12s',
       }}
     >
-      {/* LED indicator */}
       <span style={{
         position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
         width: 7, height: 7, borderRadius: '50%',
@@ -205,7 +184,5 @@ function TapeButton({ tab, active, onClick }) {
         opacity: active ? 0.85 : 0.55,
       }}>{tab.sub}</div>
     </button>
-  );
+  )
 }
-
-Object.assign(window, { AppHeader, NAV_TABS });

@@ -1,29 +1,25 @@
-/* TodayView — "what should I do next?"
+import React, { useState } from 'react'
+import { useT, FONT_HEAD, FONT_BODY, FONT_NUM, localDate, fmtTime, halate, getGreeting } from '../lib/theme'
+import { getAncestors, getAccent } from '../lib/seed'
+import { Eyebrow, Checkbox, Plate, TapeReel, RecLamp } from '../components/SharedComponents'
 
-   global: React, useT, FONT_HEAD, FONT_BODY, FONT_NUM,
-           localDate, fmtTime,
-           Eyebrow, Checkbox, Plate, VUMeter, TapeReel, RecLamp,
-           getAncestors, getAccent, getGreeting */
-const { useState } = React;
+export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView, selectedId, recentlyAdded }: any) {
+  const T = useT()
+  const d = localDate(today)
+  const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
-function TodayView({ items, today, onSelect, onToggle, onAddTask, setView, selectedId, recentlyAdded }) {
-  const T = useT();
-  const d = localDate(today);
-  const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-
-  const allTasks   = items.filter(it => it.kind === 'task');
-  const todayAll   = allTasks.filter(t => t.due_date === today);
-  const active     = todayAll.filter(t => !t.completed).sort((a, b) => (a.scheduled_time || 'zz').localeCompare(b.scheduled_time || 'zz'));
-  const done       = todayAll.filter(t =>  t.completed);
-  const overdue    = allTasks.filter(t => t.due_date && t.due_date < today && !t.completed);
-  const next       = active[0];
-  const rest       = active.slice(1);
+  const allTasks   = items.filter((it: any) => it.kind === 'task')
+  const todayAll   = allTasks.filter((t: any) => t.due_date === today)
+  const active     = todayAll.filter((t: any) => !t.completed).sort((a: any, b: any) => (a.scheduled_time || 'zz').localeCompare(b.scheduled_time || 'zz'))
+  const done       = todayAll.filter((t: any) =>  t.completed)
+  const overdue    = allTasks.filter((t: any) => t.due_date && t.due_date < today && !t.completed)
+  const next       = active[0]
+  const rest       = active.slice(1)
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', background: T.paper }}>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 36px 80px' }}>
 
-        {/* ── Date + greeting ───────────────────────────────────── */}
         <div style={{ marginBottom: 36 }}>
           <Eyebrow style={{ marginBottom: 6 }}>{dateStr}</Eyebrow>
           <h1 style={{
@@ -33,7 +29,6 @@ function TodayView({ items, today, onSelect, onToggle, onAddTask, setView, selec
           }}>{getGreeting()}</h1>
         </div>
 
-        {/* ── NEXT — the single anchor of the page ──────────────── */}
         {next ? (
           <NextCard item={next} items={items} onSelect={onSelect} onToggle={onToggle} />
         ) : todayAll.length === 0 && overdue.length === 0 ? (
@@ -42,21 +37,16 @@ function TodayView({ items, today, onSelect, onToggle, onAddTask, setView, selec
           <ClearedDay onceMore={() => setView('tasks')} />
         )}
 
-        {/* ── Overdue strip — small, only if any ────────────────── */}
         {overdue.length > 0 && (
           <section style={{ marginTop: 40 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-          <Eyebrow color={T.red} style={{ marginBottom: 10, textShadow: halate(T.red, 'low') }}>{overdue.length} overdue</Eyebrow>
-              <button
-                onClick={() => setView('week')}
-                style={tinyLink(T)}
-              >see the week →</button>
+              <Eyebrow color={T.red} style={{ marginBottom: 10, textShadow: halate(T.red, 'low') }}>{overdue.length} overdue</Eyebrow>
+              <button onClick={() => setView('week')} style={tinyLink(T)}>see the week →</button>
             </div>
             <Strip tasks={overdue} items={items} onSelect={onSelect} onToggle={onToggle} muted={false} recentlyAdded={recentlyAdded} />
           </section>
         )}
 
-        {/* ── The rest of today, quietly. ───────────────────────── */}
         {rest.length > 0 && (
           <section style={{ marginTop: 40 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -67,7 +57,6 @@ function TodayView({ items, today, onSelect, onToggle, onAddTask, setView, selec
           </section>
         )}
 
-        {/* ── Done today (collapsed) ─────────────────────────────── */}
         {done.length > 0 && (
           <details style={{ marginTop: 36, opacity: 0.7 }}>
             <summary style={{
@@ -81,7 +70,6 @@ function TodayView({ items, today, onSelect, onToggle, onAddTask, setView, selec
           </details>
         )}
 
-        {/* ── Footer hint ───────────────────────────────────────── */}
         <footer style={{
           marginTop: 56,
           paddingTop: 18,
@@ -93,22 +81,17 @@ function TodayView({ items, today, onSelect, onToggle, onAddTask, setView, selec
         </footer>
       </div>
     </div>
-  );
+  )
 }
 
-/* ── The big NEXT card — the whole point of the page ──────────── */
-function NextCard({ item, items, onSelect, onToggle }) {
-  const T = useT();
-  const accent = getAccent(item, items) || T.red;
-  const ancestors = getAncestors(item, items);
+function NextCard({ item, items, onSelect, onToggle }: any) {
+  const T = useT()
+  const accent = getAccent(item, items) || T.red
+  const ancestors = getAncestors(item, items)
 
   return (
-    <Plate accent={accent} style={{
-      padding: '28px 32px 30px 44px',
-      cursor: 'pointer',
-    }}>
+    <Plate accent={accent} style={{ padding: '28px 32px 30px 44px', cursor: 'pointer' }}>
       <article onClick={() => onSelect(item)}>
-        {/* Top row: NEXT label + REC + time */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <RecLamp size={7} label="Next" />
@@ -145,25 +128,24 @@ function NextCard({ item, items, onSelect, onToggle }) {
               fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14, color: T.ink2,
               lineHeight: 1.3,
             }}>
-              {ancestors.slice().reverse().map(a => a.title).join('  ›  ')}
+              {ancestors.slice().reverse().map((a: any) => a.title).join('  ›  ')}
             </span>
           </div>
         )}
       </article>
     </Plate>
-  );
+  )
 }
 
-/* ── Empty day ─────────────────────────────────────────────────── */
-function EmptyDay({ onAdd, today }) {
-  const T = useT();
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState('');
+function EmptyDay({ onAdd, today }: any) {
+  const T = useT()
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState('')
   const handle = () => {
-    if (!draft.trim()) { setAdding(false); return; }
-    onAdd({ title: draft.trim(), due_date: today });
-    setDraft(''); setAdding(false);
-  };
+    if (!draft.trim()) { setAdding(false); return }
+    onAdd({ title: draft.trim(), due_date: today })
+    setDraft(''); setAdding(false)
+  }
 
   return (
     <article style={{
@@ -183,8 +165,8 @@ function EmptyDay({ onAdd, today }) {
             autoFocus value={draft}
             onChange={e => setDraft(e.target.value)}
             onKeyDown={e => {
-              if (e.key === 'Enter') handle();
-              if (e.key === 'Escape') { setAdding(false); setDraft(''); }
+              if (e.key === 'Enter') handle()
+              if (e.key === 'Escape') { setAdding(false); setDraft('') }
             }}
             placeholder="One thing to do today…"
             style={{
@@ -212,11 +194,11 @@ function EmptyDay({ onAdd, today }) {
         >+ Write something down</button>
       )}
     </article>
-  );
+  )
 }
 
-function ClearedDay({ onceMore }) {
-  const T = useT();
+function ClearedDay({ onceMore }: any) {
+  const T = useT()
   return (
     <article style={{
       padding: '40px 36px',
@@ -238,23 +220,22 @@ function ClearedDay({ onceMore }) {
         }}
       >Plan something for tomorrow →</button>
     </article>
-  );
+  )
 }
 
-/* ── Compact strip — task rows, much smaller than the NEXT card ─ */
-function Strip({ tasks, items, onSelect, onToggle, muted, recentlyAdded }) {
-  const T = useT();
+function Strip({ tasks, items, onSelect, onToggle, muted, recentlyAdded }: any) {
+  const T = useT()
   return (
     <ol style={{
       listStyle: 'none', padding: 0, margin: 0,
       borderTop: `1px solid ${T.ruleSoft}`,
       opacity: muted ? 0.55 : 1,
     }}>
-      {tasks.map(task => {
-        const accent = getAccent(task, items) || T.ink2;
-        const ancestors = getAncestors(task, items);
-        const yearGoal = ancestors[ancestors.length - 1];
-        const isNew = recentlyAdded?.has(task.id);
+      {tasks.map((task: any) => {
+        const accent = getAccent(task, items) || T.ink2
+        const ancestors = getAncestors(task, items)
+        const yearGoal = ancestors[ancestors.length - 1]
+        const isNew = recentlyAdded?.has(task.id)
 
         return (
           <li
@@ -268,7 +249,7 @@ function Strip({ tasks, items, onSelect, onToggle, muted, recentlyAdded }) {
               borderBottom: `1px solid ${T.ruleSoft}`,
               cursor: 'pointer',
               '--hover-bg': T.paperDark,
-            }}
+            } as any}
           >
             <Checkbox id={task.id} completed={task.completed} onToggle={onToggle} color={accent} size={14} />
             <div style={{ minWidth: 0 }}>
@@ -292,19 +273,17 @@ function Strip({ tasks, items, onSelect, onToggle, muted, recentlyAdded }) {
               }}>{fmtTime(task.scheduled_time)}</span>
             )}
           </li>
-        );
+        )
       })}
     </ol>
-  );
+  )
 }
 
-function tinyLink(T) {
+function tinyLink(T: any) {
   return {
     background: 'transparent', border: 'none',
     fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12,
     color: T.ink2, cursor: 'pointer', padding: 0,
     textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3,
-  };
+  }
 }
-
-Object.assign(window, { TodayView });

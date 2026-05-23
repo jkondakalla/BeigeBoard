@@ -1,17 +1,15 @@
-/* Small shared atoms — extended with cassette-futurism flourishes.
-   global: React, useT, FONT_HEAD, FONT_BODY, FONT_NUM, DARK */
-const { useState, useEffect, useRef } = React;
+import React, { useState, useEffect, useRef } from 'react'
+import { useT, FONT_HEAD, FONT_BODY, FONT_NUM, TASK_COLORS } from '../lib/theme'
 
-/* ── Checkbox ────────────────────────────────────────────────── */
-function Checkbox({ id, completed, onToggle, color, size = 15 }) {
-  const T = useT();
-  const [pop, setPop] = useState(false);
-  const handle = e => {
-    e?.stopPropagation();
-    if (!completed) { setPop(true); setTimeout(() => setPop(false), 260); }
-    onToggle?.(id, completed);
-  };
-  const accent = color || T.red;
+export function Checkbox({ id, completed, onToggle, color, size = 15 }: any) {
+  const T = useT()
+  const [pop, setPop] = useState(false)
+  const handle = (e: any) => {
+    e?.stopPropagation()
+    if (!completed) { setPop(true); setTimeout(() => setPop(false), 260) }
+    onToggle?.(id, completed)
+  }
+  const accent = color || T.red
   return (
     <button
       onClick={handle}
@@ -28,31 +26,25 @@ function Checkbox({ id, completed, onToggle, color, size = 15 }) {
         boxShadow: completed ? `0 0 8px ${accent}66` : 'none',
       }}
     >{completed ? '✓' : ''}</button>
-  );
+  )
 }
 
-/* ── Eyebrow ────────────────────────────────────────────────── */
-function Eyebrow({ children, color, style }) {
-  const T = useT();
+export function Eyebrow({ children, color, style }: any) {
+  const T = useT()
   return (
     <div style={{
       fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.22em',
       textTransform: 'uppercase', color: color || T.ink2,
       ...style,
     }}>{children}</div>
-  );
+  )
 }
 
-/* ── VU Meter — LED-segment progress bar ────────────────────── */
-/* The cassette signature. Renders N segments, lights up the
-   first `pct%` in amber, the rest are dim. Optionally peak-red
-   on the rightmost lit segments. */
-function VUMeter({ pct = 0, color, segments = 20, height = 8, label, peak = true }) {
-  const T = useT();
-  const accent = color || T.yellow;
-  const lit = Math.round((pct / 100) * segments);
-  /* Top quarter of lit segments goes red ("hot signal") */
-  const peakStart = peak ? Math.max(0, segments - Math.ceil(segments * 0.2)) : segments;
+export function VUMeter({ pct = 0, color, segments = 20, height = 8, label, peak = true }: any) {
+  const T = useT()
+  const accent = color || T.yellow
+  const lit = Math.round((pct / 100) * segments)
+  const peakStart = peak ? Math.max(0, segments - Math.ceil(segments * 0.2)) : segments
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -64,10 +56,10 @@ function VUMeter({ pct = 0, color, segments = 20, height = 8, label, peak = true
         boxShadow: `inset 0 2px 4px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.06)`,
       }}>
         {Array.from({ length: segments }, (_, i) => {
-          const isLit = i < lit;
-          const isHot = i >= peakStart && isLit;
-          const ledColor = isLit ? (isHot ? T.red : accent) : 'rgba(0,0,0,0.5)';
-          const glow = isLit ? `0 0 4px ${isHot ? T.red : accent}99` : 'none';
+          const isLit = i < lit
+          const isHot = i >= peakStart && isLit
+          const ledColor = isLit ? (isHot ? T.red : accent) : 'rgba(0,0,0,0.5)'
+          const glow = isLit ? `0 0 4px ${isHot ? T.red : accent}99` : 'none'
           return (
             <div key={i} style={{
               flex: 1, height,
@@ -76,7 +68,7 @@ function VUMeter({ pct = 0, color, segments = 20, height = 8, label, peak = true
               opacity: isLit ? 1 : 0.45,
               transition: 'background 0.2s, box-shadow 0.2s',
             }} />
-          );
+          )
         })}
       </div>
       {label && (
@@ -88,14 +80,12 @@ function VUMeter({ pct = 0, color, segments = 20, height = 8, label, peak = true
         }}>{label}</span>
       )}
     </div>
-  );
+  )
 }
 
-/* ── Tape reel SVG decoration ───────────────────────────────── */
-function TapeReel({ size = 36, color, spinning = false, style }) {
-  const T = useT();
-  const c = color || T.ink2;
-  const r = size / 2 - 1;
+export function TapeReel({ size = 36, color, spinning = false, style }: any) {
+  const T = useT()
+  const c = color || T.ink2
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" style={{
       display: 'inline-block',
@@ -108,7 +98,6 @@ function TapeReel({ size = 36, color, spinning = false, style }) {
       <circle cx="20" cy="20" r="18" fill="none" stroke={c} strokeWidth="1.2" opacity="0.85" />
       <circle cx="20" cy="20" r="11" fill="none" stroke={c} strokeWidth="0.8" opacity="0.6" />
       <circle cx="20" cy="20" r="3.5" fill={c} opacity="0.9" />
-      {/* Spokes */}
       {[0, 60, 120, 180, 240, 300].map(deg => (
         <line key={deg}
           x1="20" y1="20"
@@ -118,32 +107,24 @@ function TapeReel({ size = 36, color, spinning = false, style }) {
         />
       ))}
     </svg>
-  );
+  )
 }
 
-/* ── Machined plate — wraps content with cassette-deck chrome ── */
-function Plate({ children, style, accent, recessed, dataDropId, ...rest }) {
-  const T = useT();
+export function Plate({ children, style, accent, recessed, dataDropId, ...rest }: any) {
+  const T = useT()
   return (
     <div
       data-drop-id={dataDropId}
       {...rest}
       style={{
-      position: 'relative',
-      background: recessed
-        ? 'rgba(0,0,0,0.25)'
-        : T.paperDark,
-      border: `1px solid ${T.rule}`,
-      boxShadow: recessed
-        ? `inset 0 2px 6px rgba(0,0,0,0.4), inset 0 -1px 0 rgba(255,255,255,0.04)`
-        : `
-            inset 0 1px 0 rgba(255,255,255,0.06),
-            inset 0 -2px 4px rgba(0,0,0,0.18),
-            0 1px 0 rgba(0,0,0,0.4),
-            0 4px 16px rgba(0,0,0,0.18)
-          `,
-      ...style,
-    }}>
+        position: 'relative',
+        background: recessed ? 'rgba(0,0,0,0.25)' : T.paperDark,
+        border: `1px solid ${T.rule}`,
+        boxShadow: recessed
+          ? `inset 0 2px 6px rgba(0,0,0,0.4), inset 0 -1px 0 rgba(255,255,255,0.04)`
+          : `inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 4px rgba(0,0,0,0.18), 0 1px 0 rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.18)`,
+        ...style,
+      }}>
       {accent && (
         <div style={{
           position: 'absolute', left: 0, top: 0, bottom: 0, width: 5,
@@ -153,16 +134,13 @@ function Plate({ children, style, accent, recessed, dataDropId, ...rest }) {
       )}
       {children}
     </div>
-  );
+  )
 }
 
-/* ── REC indicator — pulsing red dot for "live" state ─────────── */
-function RecLamp({ size = 8, label }) {
-  const T = useT();
+export function RecLamp({ size = 8, label }: any) {
+  const T = useT()
   return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6,
-    }}>
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
       <span className="now-dot" style={{
         width: size, height: size, borderRadius: '50%',
         background: T.red,
@@ -176,17 +154,16 @@ function RecLamp({ size = 8, label }) {
         }}>{label}</span>
       )}
     </div>
-  );
+  )
 }
 
-/* ── Live time readout (CRT-amber) ────────────────────────────── */
-function TimeReadout({ style }) {
-  const T = useT();
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => { const i = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(i); }, []);
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  const ss = String(now.getSeconds()).padStart(2, '0');
+export function TimeReadout({ style }: any) {
+  const T = useT()
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => { const i = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(i) }, [])
+  const hh = String(now.getHours()).padStart(2, '0')
+  const mm = String(now.getMinutes()).padStart(2, '0')
+  const ss = String(now.getSeconds()).padStart(2, '0')
   return (
     <span style={{
       fontFamily: FONT_NUM, fontStyle: 'italic',
@@ -196,19 +173,18 @@ function TimeReadout({ style }) {
     }}>
       {hh}<span style={{ opacity: 0.4 }}>:</span>{mm}<span style={{ opacity: 0.6, fontSize: 10 }}>:{ss}</span>
     </span>
-  );
+  )
 }
 
-/* ── ColorPicker — 7-swatch popover for task accent ──────────────── */
-function ColorPicker({ current, onChange, onClose }) {
-  const T = useT();
-  const ref = useRef(null);
+export function ColorPicker({ current, onChange, onClose }: any) {
+  const T = useT()
+  const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const onDown = e => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [onClose]);
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose() }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [onClose])
 
   return (
     <div ref={ref} style={{
@@ -219,9 +195,8 @@ function ColorPicker({ current, onChange, onClose }) {
       padding: '8px 10px',
       display: 'flex', gap: 5, alignItems: 'center',
     }}>
-      {/* No-color option */}
       <button
-        onClick={() => { onChange(null); onClose(); }}
+        onClick={() => { onChange(null); onClose() }}
         title="No color"
         style={{
           width: 18, height: 18, border: `1px solid ${T.rule}`,
@@ -235,7 +210,7 @@ function ColorPicker({ current, onChange, onClose }) {
       {TASK_COLORS.map(c => (
         <button
           key={c.id}
-          onClick={() => { onChange(c.hex); onClose(); }}
+          onClick={() => { onChange(c.hex); onClose() }}
           title={c.label}
           style={{
             width: 18, height: 18,
@@ -248,11 +223,5 @@ function ColorPicker({ current, onChange, onClose }) {
         />
       ))}
     </div>
-  );
+  )
 }
-
-Object.assign(window, {
-  Checkbox, Eyebrow,
-  VUMeter, TapeReel, Plate, RecLamp, TimeReadout,
-  ColorPicker,
-});
