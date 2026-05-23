@@ -60,6 +60,7 @@ export function ConnectModal({ open, onClose, accounts, onConnect, onDisconnect,
     try {
       const r = await fetch(`${apiUrl}/api/auth/icloud`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: icloudUser, appPassword: icloudPass }),
       })

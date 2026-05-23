@@ -41,13 +41,13 @@ const ACCENT_HEXES = Object.keys(ACCENT_OPTIONS)
 export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   const api = {
     get:   (path: string) =>
-      fetch(`${apiUrl}${path}`).then(r => r.json()),
+      fetch(`${apiUrl}${path}`, { credentials: 'include' }).then(r => r.json()),
     post:  (path: string, body: any) =>
-      fetch(`${apiUrl}${path}`, { method: 'POST',  headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`${apiUrl}${path}`, { method: 'POST',  credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()),
     patch: (path: string, body: any) =>
-      fetch(`${apiUrl}${path}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()),
+      fetch(`${apiUrl}${path}`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()),
     del:   (path: string) =>
-      fetch(`${apiUrl}${path}`, { method: 'DELETE' }).then(r => r.json()),
+      fetch(`${apiUrl}${path}`, { method: 'DELETE', credentials: 'include' }).then(r => r.json()),
   }
   const [intro, setIntro]                 = useState(() => TWEAK_DEFAULTS.intro)
   const [colorIn, setColorIn]             = useState(() => !TWEAK_DEFAULTS.intro)

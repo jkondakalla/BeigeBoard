@@ -1,7 +1,9 @@
-const express = require('express');
-const path    = require('path');
-const sqlite3 = require('sqlite3').verbose();
-const { google } = require('googleapis');
+const express      = require('express');
+const path         = require('path');
+const sqlite3      = require('sqlite3').verbose();
+const { google }   = require('googleapis');
+const cookieParser = require('cookie-parser');
+const jwt          = require('jsonwebtoken');
 
 const PORT    = process.env.PORT    || 3001;
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'beigeBoard.db');
@@ -247,8 +249,51 @@ async function syncICloudEvents(username, password) {
   return total;
 }
 
+const JWT_SECRET = process.env.JWT_SECRET || '';
+const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\/$/, '');
+
 const app = express();
+app.use(cookieParser());
 app.use(express.json());
+
+// CORS — allow the ORDECK shell to make credentialed requests
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin === SHELL_URL) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
+// JWT guard — skips calendar OAuth callback routes (they use their own auth flows)
+const PUBLIC_PATHS = [
+  '/health',
+  '/api/auth/google',
+  '/api/auth/google/callback',
+  '/api/auth/outlook',
+  '/api/auth/outlook/callback',
+];
+app.use((req, res, next) => {
+  if (!JWT_SECRET) return next(); // auth not configured — open access (dev)
+  if (PUBLIC_PATHS.some(p => req.path === p || req.path.startsWith(p + '/'))) return next();
+
+  const token = req.cookies.ordeck_access
+    || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+
+  if (!token) return res.status(401).json({ error: 'Authentication required' });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET, { issuer: 'ordeck-auth' });
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+});
+
+app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'beigeboard' }));
 
 /* ── Database ──────────────────────────────────────────────────────── */
 const db = new sqlite3.Database(DB_PATH);
