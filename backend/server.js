@@ -249,8 +249,11 @@ async function syncICloudEvents(username, password) {
   return total;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || '';
-const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\/$/, '');
+const JWT_SECRET             = process.env.JWT_SECRET             || '';
+const SHELL_URL              = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\/$/, '');
+const LAZUROS_URL            = (process.env.LAZUROS_URL || 'http://ordeck-lazuros:8003').replace(/\/$/, '');
+const LAZUROS_TOKEN          = process.env.LAZUROS_TOKEN          || '';
+const LAZUROS_DEFAULT_MODEL  = process.env.LAZUROS_DEFAULT_MODEL  || 'llama3.2';
 
 const app = express();
 app.use(cookieParser());
@@ -693,6 +696,75 @@ app.post('/api/calendar/icloud/sync', async (req, res) => {
     const count = await syncICloudEvents(row.email, row.access_token);
     res.json({ ok: true, synced: count });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ── AI endpoints (via LazurOS) ────────────────────────────────────── */
+
+// Parse natural language into structured task fields
+// POST /api/ai/parse-task  { text: string, today?: "YYYY-MM-DD" }
+app.post('/api/ai/parse-task', async (req, res) => {
+  try {
+    const { text, today } = req.body;
+    if (!text?.trim()) return res.status(400).json({ error: 'text is required' });
+
+    const todayStr = today || new Date().toISOString().split('T')[0];
+    const d = new Date(todayStr + 'T12:00:00');
+    const tomorrowStr = new Date(d.getTime() + 86400000).toISOString().split('T')[0];
+    const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+
+    const prompt = `Parse this task or event description into structured JSON fields.
+
+Description: "${text.trim()}"
+
+Context:
+- Today is ${dayName} ${todayStr}
+- Tomorrow is ${tomorrowStr}
+- Resolve relative dates like "tomorrow", "friday", "next week" to YYYY-MM-DD
+
+Return ONLY a JSON object with exactly these fields:
+{
+  "title": "clean title without date/time info",
+  "kind": "task" or "event",
+  "scope": "day" or "week" or "month",
+  "due_date": "YYYY-MM-DD" or null,
+  "scheduled_time": "HH:MM" (24h) or null,
+  "notes": "extra context" or null
+}`;
+
+    const aiHeaders = { 'Content-Type': 'application/json' };
+    if (LAZUROS_TOKEN) aiHeaders['Authorization'] = `Bearer ${LAZUROS_TOKEN}`;
+
+    const r = await fetch(`${LAZUROS_URL}/api/chat`, {
+      method: 'POST',
+      headers: aiHeaders,
+      body: JSON.stringify({
+        model: LAZUROS_DEFAULT_MODEL,
+        messages: [
+          { role: 'system', content: 'You are a JSON API. Respond with a single valid JSON object only. No markdown, no explanation.' },
+          { role: 'user',   content: prompt },
+        ],
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    if (!r.ok) {
+      const err = await r.text().catch(() => r.status);
+      return res.status(502).json({ error: `LazurOS error: ${err}` });
+    }
+
+    const aiData = await r.json();
+    const raw = aiData?.message?.content ?? '';
+    const start = raw.indexOf('{');
+    const end   = raw.lastIndexOf('}') + 1;
+    if (start < 0 || end <= start) return res.status(502).json({ error: 'AI returned no JSON', raw });
+
+    const parsed = JSON.parse(raw.slice(start, end));
+    res.json(parsed);
+  } catch (e) {
+    console.error('[ai/parse-task]', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 /* ── Static files + SPA fallback ──────────────────────────────────── */

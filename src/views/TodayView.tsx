@@ -141,10 +141,34 @@ function EmptyDay({ onAdd, today }: any) {
   const T = useT()
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+
   const handle = () => {
     if (!draft.trim()) { setAdding(false); return }
     onAdd({ title: draft.trim(), due_date: today })
     setDraft(''); setAdding(false)
+  }
+
+  const handleAI = async () => {
+    if (!draft.trim() || aiLoading) return
+    setAiLoading(true)
+    try {
+      const r = await fetch('/api/ai/parse-task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ prompt: draft.trim() }),
+      })
+      if (!r.ok) throw new Error()
+      const parsed = await r.json()
+      onAdd({ due_date: today, ...parsed })
+      setDraft(''); setAdding(false)
+    } catch {
+      onAdd({ title: draft.trim(), due_date: today })
+      setDraft(''); setAdding(false)
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   return (
@@ -168,7 +192,7 @@ function EmptyDay({ onAdd, today }: any) {
               if (e.key === 'Enter') handle()
               if (e.key === 'Escape') { setAdding(false); setDraft('') }
             }}
-            placeholder="One thing to do today…"
+            placeholder="Describe a task — or let AI parse it…"
             style={{
               flex: 1, background: 'transparent', border: 'none',
               borderBottom: `1px solid ${T.rule}`,
@@ -176,6 +200,19 @@ function EmptyDay({ onAdd, today }: any) {
               padding: '6px 2px',
             }}
           />
+          <button
+            onClick={handleAI}
+            disabled={aiLoading}
+            className="btn-action"
+            title="Let AI parse this into a structured task"
+            style={{
+              background: aiLoading ? T.paperDark : 'transparent',
+              color: T.yellow, border: `1px solid ${T.yellow}55`,
+              fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
+              textTransform: 'uppercase', padding: '10px 14px',
+              cursor: aiLoading ? 'wait' : 'pointer', opacity: aiLoading ? 0.6 : 1,
+            }}
+          >{aiLoading ? '…' : '✦ AI'}</button>
           <button onClick={handle} className="btn-action" style={{
             background: T.red, color: T.paper, border: 'none',
             fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em',
