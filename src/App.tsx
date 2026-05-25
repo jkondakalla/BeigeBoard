@@ -259,7 +259,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
       <ConnectModal
         open={showConnect} onClose={() => setShowConnect(false)}
         accounts={accounts} onConnect={onConnect} onDisconnect={onDisconnect} onSync={onSync}
-        apiUrl={API_URL}
+        apiUrl={apiUrl}
       />
 
       <TweaksPanel>

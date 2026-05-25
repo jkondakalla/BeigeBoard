@@ -1,33 +1,30 @@
+# BeigeBoard — standalone deployment
+# Serves frontend + API on a single container (port 3001 internal).
+# Sits on bb-net; the standalone-nginx container joins this network to proxy
+# beigeboard.jkos.net → bb-app:3001.
+#
+# First run:
+#   cp .env.example .env && nano .env   # fill secrets
+#   mkdir -p /mnt/Luna/BeigeBoard-Data
+#   docker compose up -d --build
+
 services:
-  # Standalone mode: full app (frontend + backend) on one port
-  beigeBoard:
+  bb-app:
     build: .
-    ports:
-      - "3001:3001"
-    volumes:
-      - bb-data:/data
+    container_name: bb-app
+    restart: unless-stopped
+    env_file: .env
     environment:
-      PORT: 3001
+      PORT: "3001"
       DB_PATH: /data/beigeBoard.db
-    restart: unless-stopped
-
-  # ORDECK mode: API-only on port 8003 (widget is served from ORDECK monorepo)
-  beigeboard-api:
-    build: ./backend
-    ports:
-      - "8003:8003"
+      STATIC_DIR: /app/dist
     volumes:
-      - bb-data:/data
-    environment:
-      - PORT=8003
-      - DB_PATH=/data/beigeBoard.db
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:8003/api/auth/google/callback}
-      - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID}
-      - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET}
-      - MICROSOFT_REDIRECT_URI=${MICROSOFT_REDIRECT_URI:-http://localhost:8003/api/auth/outlook/callback}
-    restart: unless-stopped
+      - /mnt/Luna/BeigeBoard-Data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - bb-net
 
-volumes:
-  bb-data:
+networks:
+  bb-net:
+    name: bb-net

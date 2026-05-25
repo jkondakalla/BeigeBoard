@@ -251,7 +251,7 @@ async function syncICloudEvents(username, password) {
 
 const JWT_SECRET             = process.env.JWT_SECRET             || '';
 const SHELL_URL              = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\/$/, '');
-const LAZUROS_URL            = (process.env.LAZUROS_URL || 'http://ordeck-lazuros:8003').replace(/\/$/, '');
+const LAZUROS_URL            = (process.env.LAZUROS_URL || 'http://localhost:8080').replace(/\/$/, '');
 const LAZUROS_TOKEN          = process.env.LAZUROS_TOKEN          || '';
 const LAZUROS_DEFAULT_MODEL  = process.env.LAZUROS_DEFAULT_MODEL  || 'llama3.2';
 

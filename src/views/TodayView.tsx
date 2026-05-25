@@ -316,7 +316,7 @@ function Strip({ tasks, items, onSelect, onToggle, muted, recentlyAdded }: any) 
   )
 }
 
-function tinyLink(T: any) {
+function tinyLink(T: any): React.CSSProperties {
   return {
     background: 'transparent', border: 'none',
     fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12,
