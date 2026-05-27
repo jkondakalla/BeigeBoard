@@ -1,5 +1,6 @@
 const express      = require('express');
 const path         = require('path');
+const crypto       = require('crypto');
 const sqlite3      = require('sqlite3').verbose();
 const { google }   = require('googleapis');
 const cookieParser = require('cookie-parser');
@@ -250,6 +251,7 @@ async function syncICloudEvents(username, password) {
 }
 
 const JWT_SECRET             = process.env.JWT_SECRET             || '';
+const LOGIN_PASSWORD         = process.env.LOGIN_PASSWORD         || '';
 const SHELL_URL              = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\/$/, '');
 const LAZUROS_URL            = (process.env.LAZUROS_URL || 'http://localhost:8080').replace(/\/$/, '');
 const LAZUROS_TOKEN          = process.env.LAZUROS_TOKEN          || '';
@@ -275,6 +277,9 @@ app.use((req, res, next) => {
 // JWT guard — skips calendar OAuth callback routes (they use their own auth flows)
 const PUBLIC_PATHS = [
   '/health',
+  '/api/auth/login',
+  '/api/auth/logout',
+  '/api/auth/me',
   '/api/auth/google',
   '/api/auth/google/callback',
   '/api/auth/outlook',
@@ -297,6 +302,42 @@ app.use((req, res, next) => {
 });
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'beigeboard' }));
+
+/* ── Password login ────────────────────────────────────────────────── */
+app.post('/api/auth/login', (req, res) => {
+  if (!LOGIN_PASSWORD) return res.status(501).json({ error: 'LOGIN_PASSWORD not configured' });
+  const { password } = req.body || {};
+  if (typeof password !== 'string' || !password) return res.status(401).json({ error: 'Invalid password' });
+
+  const hashPw = s => crypto.createHash('sha256').update(s).digest();
+  const match = crypto.timingSafeEqual(hashPw(password), hashPw(LOGIN_PASSWORD));
+  if (!match) return res.status(401).json({ error: 'Invalid password' });
+
+  const token = jwt.sign({ sub: 'user' }, JWT_SECRET, { issuer: 'ordeck-auth', expiresIn: '7d' });
+  res.cookie('ordeck_access', token, {
+    httpOnly: true, sameSite: 'lax', secure: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+  res.json({ ok: true });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('ordeck_access', { httpOnly: true, sameSite: 'lax', secure: true });
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  if (!JWT_SECRET) return res.json({ authenticated: true });
+  const token = req.cookies.ordeck_access
+    || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+  if (!token) return res.json({ authenticated: false });
+  try {
+    jwt.verify(token, JWT_SECRET, { issuer: 'ordeck-auth' });
+    res.json({ authenticated: true });
+  } catch {
+    res.json({ authenticated: false });
+  }
+});
 
 /* ── Database ──────────────────────────────────────────────────────── */
 const db = new sqlite3.Database(DB_PATH);

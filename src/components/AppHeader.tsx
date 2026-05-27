@@ -9,7 +9,7 @@ const NAV_TABS = [
   { id: 'tasks',    label: 'Tasks',    sub: 'workshop' },
 ]
 
-export function AppHeader({ view, setView, today, onConnectClick, accounts }: any) {
+export function AppHeader({ view, setView, today, onConnectClick, onLogout, accounts }: any) {
   const T = useT()
   const d    = localDate(today)
   const week = Math.ceil(((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 86400000) / 7)
@@ -75,6 +75,23 @@ export function AppHeader({ view, setView, today, onConnectClick, accounts }: an
           </span>
           {connected} sources
         </button>
+        {onLogout && (
+          <>
+            <span style={{ width: 1, height: 14, background: T.rule, opacity: 0.6 }} />
+            <button
+              onClick={onLogout}
+              title="Sign out"
+              style={{
+                background: 'transparent', border: 'none',
+                fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.18em',
+                textTransform: 'uppercase', color: T.ink3, cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              Sign out
+            </button>
+          </>
+        )}
       </div>
     </header>
   )

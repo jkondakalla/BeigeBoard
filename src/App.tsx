@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import './app.css'
 
-import { ThemeCtx, DARK, weekStart } from './lib/theme'
+import { ThemeCtx, DARK, FONT_HEAD, FONT_BODY, weekStart } from './lib/theme'
 import { TODAY_ISO, INITIAL_ACCOUNTS } from './lib/seed'
 import { DragProvider } from './providers/DragProvider'
 
@@ -21,6 +21,87 @@ import { TasksView } from './views/TasksView'
 
 const DEFAULT_API_URL = import.meta.env.VITE_API_URL ?? ''
 
+function LoginScreen({ apiUrl, onLogin }: { apiUrl: string; onLogin: () => void }) {
+  const [password, setPassword] = useState('')
+  const [error, setError]       = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitting(true)
+    setError('')
+    try {
+      const r = await fetch(`${apiUrl}/api/auth/login`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
+      const d = await r.json()
+      if (r.ok) { onLogin() } else { setError(d.error || 'Invalid password') }
+    } catch { setError('Connection error') }
+    setSubmitting(false)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: DARK.paper, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <form onSubmit={submit} style={{
+        display: 'flex', flexDirection: 'column', gap: 14,
+        width: 300,
+        padding: '32px 28px',
+        background: DARK.paperDark,
+        border: `1px solid ${DARK.rule}`,
+        boxShadow: '0 8px 48px rgba(0,0,0,0.6)',
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: 4 }}>
+          <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 600, fontSize: 26, color: DARK.yellow }}>
+            BeigeBoard
+          </span>
+        </div>
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          autoFocus
+          style={{
+            background: '#1A140A',
+            border: `1px solid ${DARK.rule}`,
+            color: DARK.ink,
+            fontFamily: FONT_BODY,
+            fontSize: 14,
+            padding: '10px 12px',
+            outline: 'none',
+          }}
+        />
+        {error && (
+          <span style={{ fontFamily: FONT_BODY, fontSize: 12, color: DARK.red, textAlign: 'center' }}>
+            {error}
+          </span>
+        )}
+        <button
+          type="submit"
+          disabled={submitting || !password}
+          style={{
+            background: DARK.red,
+            border: 'none',
+            color: DARK.ink,
+            fontFamily: FONT_BODY,
+            fontSize: 11,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase' as const,
+            padding: '11px 0',
+            cursor: submitting ? 'wait' : 'pointer',
+            opacity: submitting || !password ? 0.45 : 1,
+          }}
+        >
+          {submitting ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
 const TWEAK_DEFAULTS = {
   intro:     false,
   grain:     true,
@@ -39,16 +120,48 @@ const ACCENT_OPTIONS: Record<string, { redSoft: string; dredSoft: string }> = {
 const ACCENT_HEXES = Object.keys(ACCENT_OPTIONS)
 
 export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
-  const api = {
-    get:   (path: string) =>
-      fetch(`${apiUrl}${path}`, { credentials: 'include' }).then(r => r.json()),
-    post:  (path: string, body: any) =>
-      fetch(`${apiUrl}${path}`, { method: 'POST',  credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()),
-    patch: (path: string, body: any) =>
-      fetch(`${apiUrl}${path}`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()),
-    del:   (path: string) =>
-      fetch(`${apiUrl}${path}`, { method: 'DELETE', credentials: 'include' }).then(r => r.json()),
+  const [authed, setAuthed] = useState<boolean | null>(null)
+
+  const checkAuth = async () => {
+    try {
+      const r = await fetch(`${apiUrl}/api/auth/me`, { credentials: 'include' })
+      const d = await r.json()
+      setAuthed(d.authenticated === true)
+    } catch { setAuthed(false) }
   }
+
+  useEffect(() => { checkAuth() }, [])
+
+  const handle401 = () => setAuthed(false)
+
+  const api = {
+    get: (path: string) =>
+      fetch(`${apiUrl}${path}`, { credentials: 'include' }).then(r => {
+        if (r.status === 401) { handle401(); throw new Error('Unauthorized') }
+        return r.json()
+      }),
+    post: (path: string, body: any) =>
+      fetch(`${apiUrl}${path}`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => {
+        if (r.status === 401) { handle401(); throw new Error('Unauthorized') }
+        return r.json()
+      }),
+    patch: (path: string, body: any) =>
+      fetch(`${apiUrl}${path}`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => {
+        if (r.status === 401) { handle401(); throw new Error('Unauthorized') }
+        return r.json()
+      }),
+    del: (path: string) =>
+      fetch(`${apiUrl}${path}`, { method: 'DELETE', credentials: 'include' }).then(r => {
+        if (r.status === 401) { handle401(); throw new Error('Unauthorized') }
+        return r.json()
+      }),
+  }
+
+  const handleLogout = async () => {
+    await fetch(`${apiUrl}/api/auth/logout`, { method: 'POST', credentials: 'include' })
+    setAuthed(false)
+  }
+
   const [intro, setIntro]                 = useState(() => TWEAK_DEFAULTS.intro)
   const [colorIn, setColorIn]             = useState(() => !TWEAK_DEFAULTS.intro)
   const [view, setView]                   = useState('today')
@@ -189,6 +302,14 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     onWeekJump: (iso: string) => { setWeekJumpDate(weekStart(iso)); setView('week') },
   }
 
+  if (authed === null) {
+    return <div style={{ position: 'fixed', inset: 0, background: DARK.paper }} />
+  }
+
+  if (authed === false) {
+    return <LoginScreen apiUrl={apiUrl} onLogin={() => setAuthed(true)} />
+  }
+
   return (
     <ThemeCtx.Provider value={T}>
     <DragProvider>
@@ -223,6 +344,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
               today={TODAY_ISO}
               accounts={accounts}
               onConnectClick={() => setShowConnect(true)}
+              onLogout={handleLogout}
             />
           </div>
 
