@@ -9,7 +9,7 @@ const NAV_TABS = [
   { id: 'tasks',    label: 'Tasks',    sub: 'workshop' },
 ]
 
-export function AppHeader({ view, setView, today, onConnectClick, onLogout, accounts }: any) {
+export function AppHeader({ view, setView, today, onConnectClick, onLogout, accounts, user }: any) {
   const T = useT()
   const d    = localDate(today)
   const week = Math.ceil(((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 86400000) / 7)
@@ -51,6 +51,15 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, acco
       <TapeDeck view={view} setView={setView} />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 14 }}>
+        {user?.role === 'guest' && (
+          <span style={{
+            fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
+            textTransform: 'uppercase', color: T.ink3,
+            border: `1px solid ${T.rule}`,
+            padding: '3px 8px',
+            opacity: 0.7,
+          }}>Guest</span>
+        )}
         <TimeReadout />
         <span style={{ width: 1, height: 14, background: T.rule, opacity: 0.6 }} />
         <button

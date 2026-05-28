@@ -69,7 +69,7 @@ function layoutTimedEvents(events: any[]) {
   })
 }
 
-export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdateItem, selectedId, weekJumpDate }: any) {
+export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdateItem, selectedId, weekJumpDate, readonly }: any) {
   const T = useT()
   const { drag, beginDrag } = useDrag()
 
@@ -178,6 +178,7 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
   }
 
   const beginCreate = (e: MouseEvent, dayKey: string, hourFrac: number) => {
+    if (readonly) return
     e.preventDefault()
     beginDrag(null, 'create', ({ overFrac, overDay }: any) => {
       const a = hourFrac, b = overFrac ?? hourFrac
@@ -268,7 +269,7 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                         key={d}
                         data-drop-zone="allday"
                         data-drop-day={d}
-                        onClick={!anyDrag ? () => setCreatePending({ startDay: d, allDay: true, scheduled_time: null, scheduled_end: null }) : undefined}
+                        onClick={(!anyDrag && !readonly) ? () => setCreatePending({ startDay: d, allDay: true, scheduled_time: null, scheduled_end: null }) : undefined}
                         style={{
                           borderRight: i < 6 ? `1px solid ${T.rule}` : 'none',
                           background: isOver ? `${T.red}22` : d === today ? `${T.redSoft}22` : 'transparent',

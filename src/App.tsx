@@ -19,89 +19,34 @@ import { WeekView } from './views/WeekView'
 import { CalendarView } from './views/CalendarView'
 import { TasksView } from './views/TasksView'
 
-const DEFAULT_API_URL = import.meta.env.VITE_API_URL ?? ''
+const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''
+const JKOS_AUTH_URL    = import.meta.env.VITE_JKOS_AUTH_URL ?? 'https://auth.jkos.net'
 
-function LoginScreen({ apiUrl, onLogin }: { apiUrl: string; onLogin: () => void }) {
-  const [password, setPassword] = useState('')
-  const [error, setError]       = useState('')
-  const [submitting, setSubmitting] = useState(false)
+/* ── Token-refresh-aware fetch ─────────────────────────────────────────── */
+let refreshing: Promise<boolean> | null = null
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSubmitting(true)
-    setError('')
-    try {
-      const r = await fetch(`${apiUrl}/api/auth/login`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      })
-      const d = await r.json()
-      if (r.ok) { onLogin() } else { setError(d.error || 'Invalid password') }
-    } catch { setError('Connection error') }
-    setSubmitting(false)
+async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const opts = { credentials: 'include' as const, ...init }
+  const r = await fetch(input, opts)
+  if (r.status !== 401) return r
+
+  let data: any
+  try { data = await r.clone().json() } catch { return r }
+  if (data?.code !== 'TOKEN_EXPIRED') return r
+
+  /* Deduplicate concurrent refresh attempts — calls jkos-auth service */
+  if (!refreshing) {
+    refreshing = fetch(`${JKOS_AUTH_URL}/auth/refresh`, {
+      method: 'POST', credentials: 'include',
+    }).then(res => res.ok).finally(() => { refreshing = null })
   }
 
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: DARK.paper, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <form onSubmit={submit} style={{
-        display: 'flex', flexDirection: 'column', gap: 14,
-        width: 300,
-        padding: '32px 28px',
-        background: DARK.paperDark,
-        border: `1px solid ${DARK.rule}`,
-        boxShadow: '0 8px 48px rgba(0,0,0,0.6)',
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: 4 }}>
-          <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 600, fontSize: 26, color: DARK.yellow }}>
-            BeigeBoard
-          </span>
-        </div>
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          autoFocus
-          style={{
-            background: '#1A140A',
-            border: `1px solid ${DARK.rule}`,
-            color: DARK.ink,
-            fontFamily: FONT_BODY,
-            fontSize: 14,
-            padding: '10px 12px',
-            outline: 'none',
-          }}
-        />
-        {error && (
-          <span style={{ fontFamily: FONT_BODY, fontSize: 12, color: DARK.red, textAlign: 'center' }}>
-            {error}
-          </span>
-        )}
-        <button
-          type="submit"
-          disabled={submitting || !password}
-          style={{
-            background: DARK.red,
-            border: 'none',
-            color: DARK.ink,
-            fontFamily: FONT_BODY,
-            fontSize: 11,
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase' as const,
-            padding: '11px 0',
-            cursor: submitting ? 'wait' : 'pointer',
-            opacity: submitting || !password ? 0.45 : 1,
-          }}
-        >
-          {submitting ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
-    </div>
-  )
+  const ok = await refreshing
+  if (!ok) return r
+  return fetch(input, opts)
 }
 
+/* ── Tweaks defaults ───────────────────────────────────────────────────── */
 const TWEAK_DEFAULTS = {
   intro:     false,
   grain:     true,
@@ -119,47 +64,64 @@ const ACCENT_OPTIONS: Record<string, { redSoft: string; dredSoft: string }> = {
 }
 const ACCENT_HEXES = Object.keys(ACCENT_OPTIONS)
 
+/* ── Main app ──────────────────────────────────────────────────────────── */
 export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
-  const [authed, setAuthed] = useState<boolean | null>(null)
+  /* user: null = loading, false = not authed, object = authenticated */
+  const [user, setUser] = useState<any>(null)
+
+  const toAuthPortal = () => {
+    window.location.href = `${JKOS_AUTH_URL}/auth/login?redirect_to=${encodeURIComponent(window.location.href)}`
+  }
 
   const checkAuth = async () => {
     try {
-      const r = await fetch(`${apiUrl}/api/auth/me`, { credentials: 'include' })
-      const d = await r.json()
-      setAuthed(d.authenticated === true)
-    } catch { setAuthed(false) }
+      const r = await apiFetch(`${apiUrl}/api/auth/me`)
+      if (r.ok) {
+        const d = await r.json()
+        setUser(d.user)
+      } else {
+        toAuthPortal()
+      }
+    } catch { toAuthPortal() }
   }
 
   useEffect(() => { checkAuth() }, [])
 
-  const handle401 = () => setAuthed(false)
+  const handleUnauth = () => toAuthPortal()
 
+  /* All API calls go through apiFetch which handles token refresh */
   const api = {
     get: (path: string) =>
-      fetch(`${apiUrl}${path}`, { credentials: 'include' }).then(r => {
-        if (r.status === 401) { handle401(); throw new Error('Unauthorized') }
+      apiFetch(`${apiUrl}${path}`).then(r => {
+        if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
     post: (path: string, body: any) =>
-      fetch(`${apiUrl}${path}`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => {
-        if (r.status === 401) { handle401(); throw new Error('Unauthorized') }
+      apiFetch(`${apiUrl}${path}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      }).then(r => {
+        if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
     patch: (path: string, body: any) =>
-      fetch(`${apiUrl}${path}`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => {
-        if (r.status === 401) { handle401(); throw new Error('Unauthorized') }
+      apiFetch(`${apiUrl}${path}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      }).then(r => {
+        if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
     del: (path: string) =>
-      fetch(`${apiUrl}${path}`, { method: 'DELETE', credentials: 'include' }).then(r => {
-        if (r.status === 401) { handle401(); throw new Error('Unauthorized') }
+      apiFetch(`${apiUrl}${path}`, { method: 'DELETE' }).then(r => {
+        if (r.status === 401) { handleUnauth(); throw new Error('Unauthorized') }
         return r.json()
       }),
   }
 
   const handleLogout = async () => {
-    await fetch(`${apiUrl}/api/auth/logout`, { method: 'POST', credentials: 'include' })
-    setAuthed(false)
+    try {
+      await fetch(`${JKOS_AUTH_URL}/auth/logout`, { method: 'POST', credentials: 'include' })
+    } catch { /* best effort */ }
+    window.location.href = `${JKOS_AUTH_URL}/auth/login`
   }
 
   const [intro, setIntro]                 = useState(() => TWEAK_DEFAULTS.intro)
@@ -177,14 +139,16 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS)
 
   const loadItems = async () => {
-    const data = await api.get('/api/items')
-    setItems(data)
-    setLoading(false)
+    try {
+      const data = await api.get('/api/items')
+      if (Array.isArray(data)) setItems(data)
+    } finally { setLoading(false) }
   }
 
-  useEffect(() => { loadItems() }, [])
+  useEffect(() => { if (user) loadItems() }, [user])
 
   useEffect(() => {
+    if (!user) return
     ;['google', 'outlook', 'icloud'].forEach(id => {
       api.get(`/api/auth/${id}/status`).then((status: any) => {
         if (status.connected) {
@@ -194,7 +158,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
         }
       }).catch(() => {})
     })
-  }, [])
+  }, [user])
 
   const accentHex    = ACCENT_OPTIONS[tweaks.accent] ? tweaks.accent : ACCENT_HEXES[0]
   const accentExtras = ACCENT_OPTIONS[accentHex]
@@ -225,8 +189,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
 
   const onAddItem = async (partial: any) => {
     const fresh = await api.post('/api/items', {
-      kind: 'task', scope: 'day', completed: false, source: 'bb',
-      ...partial,
+      kind: 'task', scope: 'day', completed: false, source: 'bb', ...partial,
     })
     setItems(prev => [...prev, fresh])
     setRecentlyAdded(s => { const n = new Set(s); n.add(fresh.id); return n })
@@ -242,9 +205,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     api.patch(`/api/items/${id}`, patch)
   }
 
-  const onAddTask = (partial: any) => {
-    onAddItem({ kind: 'task', scope: 'day', source: 'bb', ...partial })
-  }
+  const onAddTask = (partial: any) => onAddItem({ kind: 'task', scope: 'day', source: 'bb', ...partial })
 
   const onConnect = (provider: any) => {
     setAccounts(prev => prev.map((a: any) => a.id === provider.id
@@ -258,18 +219,14 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
       ? { ...a, connected: false, visible: false, email: '' }
       : a))
     const routes: Record<string, string> = {
-      google:  '/api/auth/google',
-      outlook: '/api/auth/outlook',
-      icloud:  '/api/auth/icloud',
+      google: '/api/auth/google', outlook: '/api/auth/outlook', icloud: '/api/auth/icloud',
     }
     if (routes[id]) api.del(routes[id]).then(loadItems).catch(console.error)
   }
 
   const onSync = (id: string) => {
     const routes: Record<string, string> = {
-      google:  '/api/calendar/google/sync',
-      outlook: '/api/calendar/outlook/sync',
-      icloud:  '/api/calendar/icloud/sync',
+      google: '/api/calendar/google/sync', outlook: '/api/calendar/outlook/sync', icloud: '/api/calendar/icloud/sync',
     }
     if (routes[id]) api.post(routes[id], {}).then(loadItems).catch(console.error)
   }
@@ -289,6 +246,8 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     return items.filter(it => it.kind !== 'event' || vis.has(it.source))
   }, [items, accounts])
 
+  const readonly = user?.role === 'guest'
+
   const viewProps = {
     items: visibleItems,
     today: TODAY_ISO,
@@ -300,14 +259,18 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     focusedGoalId, setFocusedGoalId,
     weekJumpDate,
     onWeekJump: (iso: string) => { setWeekJumpDate(weekStart(iso)); setView('week') },
+    readonly,
   }
 
-  if (authed === null) {
+  /* Loading splash */
+  if (user === null) {
     return <div style={{ position: 'fixed', inset: 0, background: DARK.paper }} />
   }
 
-  if (authed === false) {
-    return <LoginScreen apiUrl={apiUrl} onLogin={() => setAuthed(true)} />
+  /* Not authenticated — redirect to jkOS auth portal */
+  if (user === false) {
+    toAuthPortal()
+    return <div style={{ position: 'fixed', inset: 0, background: DARK.paper }} />
   }
 
   return (
@@ -345,6 +308,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
               accounts={accounts}
               onConnectClick={() => setShowConnect(true)}
               onLogout={handleLogout}
+              user={user}
             />
           </div>
 

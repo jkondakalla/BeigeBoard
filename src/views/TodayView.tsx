@@ -3,7 +3,7 @@ import { useT, FONT_HEAD, FONT_BODY, FONT_NUM, localDate, fmtTime, halate, getGr
 import { getAncestors, getAccent } from '../lib/seed'
 import { Eyebrow, Checkbox, Plate, TapeReel, RecLamp } from '../components/SharedComponents'
 
-export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView, selectedId, recentlyAdded }: any) {
+export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView, selectedId, recentlyAdded, readonly }: any) {
   const T = useT()
   const d = localDate(today)
   const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
@@ -32,7 +32,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView
         {next ? (
           <NextCard item={next} items={items} onSelect={onSelect} onToggle={onToggle} />
         ) : todayAll.length === 0 && overdue.length === 0 ? (
-          <EmptyDay onAdd={onAddTask} today={today} />
+          <EmptyDay onAdd={readonly ? null : onAddTask} today={today} />
         ) : (
           <ClearedDay onceMore={() => setView('tasks')} />
         )}
@@ -183,7 +183,7 @@ function EmptyDay({ onAdd, today }: any) {
         color: T.ink, margin: '0 0 20px', lineHeight: 1.3,
       }}>Nothing has been written down yet.</p>
 
-      {adding ? (
+      {onAdd && (adding ? (
         <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
           <input
             autoFocus value={draft}
@@ -229,7 +229,7 @@ function EmptyDay({ onAdd, today }: any) {
             textTransform: 'uppercase', padding: '12px 22px', cursor: 'pointer',
           }}
         >+ Write something down</button>
-      )}
+      ))}
     </article>
   )
 }

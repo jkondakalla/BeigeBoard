@@ -29,7 +29,7 @@ function isValidDrop(dragItem: any, targetItem: any, items: any[]): boolean {
   return targetItem.scope === want
 }
 
-export function TasksView({ items, today, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, focusedGoalId }: any) {
+export function TasksView({ items, today, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, focusedGoalId, readonly }: any) {
   const T = useT()
   const yearGoals = items.filter((it: any) => it.scope === 'year')
   const year = localDate(today).getFullYear()
@@ -146,18 +146,20 @@ export function TasksView({ items, today, onSelect, onToggle, onAddItem, onDelet
                 isOpen={isOpen} toggle={toggle}
                 onSelect={onSelect} onToggle={onToggle}
                 onAddItem={onAddItem} onDelete={onDelete} onUpdateItem={onUpdateItem}
-                selectedId={selectedId}
+                selectedId={selectedId} readonly={readonly}
               />
             ))}
 
-            <AddPlate
-              label="+ Add a year goal"
-              placeholder="A goal you'd be proud of in December…"
-              onSubmit={(title: string) => onAddItem({
-                kind: 'goal', scope: 'year', year,
-                title, accent: '#7A6050', source: 'bb',
-              })}
-            />
+            {!readonly && (
+              <AddPlate
+                label="+ Add a year goal"
+                placeholder="A goal you'd be proud of in December…"
+                onSubmit={(title: string) => onAddItem({
+                  kind: 'goal', scope: 'year', year,
+                  title, accent: '#7A6050', source: 'bb',
+                })}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -167,7 +169,7 @@ export function TasksView({ items, today, onSelect, onToggle, onAddItem, onDelet
   )
 }
 
-function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId }: any) {
+function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, readonly }: any) {
   const T = useT()
   const { drag } = useTasksDrag()
   const accent = item.accent || T.red
@@ -246,28 +248,30 @@ function YearNode({ item, items, index, today, isOpen, toggle, onSelect, onToggl
               isOpen={isOpen} toggle={toggle}
               onSelect={onSelect} onToggle={onToggle}
               onAddItem={onAddItem} onDelete={onDelete} onUpdateItem={onUpdateItem}
-              selectedId={selectedId}
+              selectedId={selectedId} readonly={readonly}
             />
           ))}
-          <AddSubtle
-            childScope="month"
-            accent={accent}
-            placeholder="A month-level milestone…"
-            onSubmit={(title: string) => onAddItem({
-              kind: 'goal', scope: 'month',
-              parent_id: item.id,
-              title, accent, source: item.source || 'bb',
-              year: item.year,
-              month: (new Date()).getMonth() + 1,
-            })}
-          />
+          {!readonly && (
+            <AddSubtle
+              childScope="month"
+              accent={accent}
+              placeholder="A month-level milestone…"
+              onSubmit={(title: string) => onAddItem({
+                kind: 'goal', scope: 'month',
+                parent_id: item.id,
+                title, accent, source: item.source || 'bb',
+                year: item.year,
+                month: (new Date()).getMonth() + 1,
+              })}
+            />
+          )}
         </div>
       )}
     </article>
   )
 }
 
-function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId }: any) {
+function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, readonly }: any) {
   const T = useT()
   const { drag, beginDrag } = useTasksDrag()
   const prog = getProgress(item, items)
@@ -329,27 +333,29 @@ function MonthNode({ item, items, today, accent, isOpen, toggle, onSelect, onTog
               isOpen={isOpen} toggle={toggle}
               onSelect={onSelect} onToggle={onToggle}
               onAddItem={onAddItem} onDelete={onDelete} onUpdateItem={onUpdateItem}
-              selectedId={selectedId}
+              selectedId={selectedId} readonly={readonly}
             />
           ))}
-          <AddSubtle
-            childScope="week"
-            accent={accent}
-            placeholder="A theme for one week…"
-            onSubmit={(title: string) => onAddItem({
-              kind: 'goal', scope: 'week',
-              parent_id: item.id,
-              title, accent, source: item.source || 'bb',
-              weekStart: weekStart(today),
-            })}
-          />
+          {!readonly && (
+            <AddSubtle
+              childScope="week"
+              accent={accent}
+              placeholder="A theme for one week…"
+              onSubmit={(title: string) => onAddItem({
+                kind: 'goal', scope: 'week',
+                parent_id: item.id,
+                title, accent, source: item.source || 'bb',
+                weekStart: weekStart(today),
+              })}
+            />
+          )}
         </div>
       )}
     </div>
   )
 }
 
-function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId }: any) {
+function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, readonly }: any) {
   const T = useT()
   const { drag, beginDrag } = useTasksDrag()
   const tasks = getChildren(item, items).filter((c: any) => c.kind === 'task')
@@ -405,27 +411,29 @@ function WeekNode({ item, items, today, accent, isOpen, toggle, onSelect, onTogg
               key={t.id} item={t} items={items} depth={0}
               onSelect={onSelect} onToggle={onToggle}
               onAddItem={onAddItem} onDelete={onDelete} onUpdateItem={onUpdateItem}
-              selectedId={selectedId} accent={accent}
+              selectedId={selectedId} accent={accent} readonly={readonly}
             />
           ))}
-          <li>
-            <AddTaskInline
-              accent={accent}
-              onSubmit={(title: string) => onAddItem({
-                kind: 'task', scope: 'day',
-                parent_id: item.id,
-                title, accent, source: item.source || 'bb',
-                due_date: today,
-              })}
-            />
-          </li>
+          {!readonly && (
+            <li>
+              <AddTaskInline
+                accent={accent}
+                onSubmit={(title: string) => onAddItem({
+                  kind: 'task', scope: 'day',
+                  parent_id: item.id,
+                  title, accent, source: item.source || 'bb',
+                  due_date: today,
+                })}
+              />
+            </li>
+          )}
         </ul>
       )}
     </div>
   )
 }
 
-function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, accent: parentAccent }: any) {
+function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, onUpdateItem, selectedId, accent: parentAccent, readonly }: any) {
   const T = useT()
   const { drag, beginDrag } = useTasksDrag()
   const accent = getAccent(item, items) || parentAccent || T.red
@@ -577,22 +585,26 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
           }}>{subs.filter((s: any) => s.completed).length}/{subs.length}</span>
         )}
 
-        <button
-          onClick={e => { e.stopPropagation(); setAdding(true); setExpanded(true) }}
-          title="Add a smaller step"
-          style={{
-            background: 'none', border: 'none', color: T.ink3,
-            fontSize: 14, cursor: 'pointer', lineHeight: 1, padding: '0 3px', flexShrink: 0,
-          }}
-        >+</button>
-        <button
-          onClick={e => { e.stopPropagation(); onDelete?.(item.id) }}
-          style={{
-            background: 'none', border: 'none', color: T.ink3,
-            fontSize: 11, cursor: 'pointer', lineHeight: 1, padding: '0 2px', flexShrink: 0,
-            opacity: 0.6,
-          }}
-        >✕</button>
+        {!readonly && (
+          <button
+            onClick={e => { e.stopPropagation(); setAdding(true); setExpanded(true) }}
+            title="Add a smaller step"
+            style={{
+              background: 'none', border: 'none', color: T.ink3,
+              fontSize: 14, cursor: 'pointer', lineHeight: 1, padding: '0 3px', flexShrink: 0,
+            }}
+          >+</button>
+        )}
+        {!readonly && (
+          <button
+            onClick={e => { e.stopPropagation(); onDelete?.(item.id) }}
+            style={{
+              background: 'none', border: 'none', color: T.ink3,
+              fontSize: 11, cursor: 'pointer', lineHeight: 1, padding: '0 2px', flexShrink: 0,
+              opacity: 0.6,
+            }}
+          >✕</button>
+        )}
         <DragHandle onMouseDown={(e: React.MouseEvent) => beginDrag(e, item)} small />
       </div>
 
@@ -603,7 +615,7 @@ function TaskRow({ item, items, depth, onSelect, onToggle, onAddItem, onDelete, 
               key={s.id} item={s} items={items} depth={depth + 1}
               onSelect={onSelect} onToggle={onToggle}
               onAddItem={onAddItem} onDelete={onDelete} onUpdateItem={onUpdateItem}
-              selectedId={selectedId} accent={accent}
+              selectedId={selectedId} accent={accent} readonly={readonly}
             />
           ))}
           {adding && (

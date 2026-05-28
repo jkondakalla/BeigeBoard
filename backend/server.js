@@ -1,24 +1,27 @@
+'use strict';
 const express      = require('express');
 const path         = require('path');
 const crypto       = require('crypto');
-const sqlite3      = require('sqlite3').verbose();
+const Database     = require('better-sqlite3');
 const { google }   = require('googleapis');
 const cookieParser = require('cookie-parser');
-const jwt          = require('jsonwebtoken');
+const { jkosAuth } = require('./jkos-auth');
 
-const PORT    = process.env.PORT    || 3001;
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'beigeBoard.db');
+/* ── Env ───────────────────────────────────────────────────────────────── */
+const PORT       = process.env.PORT       || 3001;
+const DB_PATH    = process.env.DB_PATH    || path.join(__dirname, 'beigeBoard.db');
+const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '..', 'dist');
+const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\/$/, '');
+
+/* RSA public key from jkos-auth — used by jkosAuth middleware */
+const JKOS_AUTH_PUBLIC_KEY = process.env.JKOS_AUTH_PUBLIC_KEY || '';
+const JKOS_AUTH_URL        = process.env.JKOS_AUTH_URL        || 'https://auth.jkos.net';
 
 const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI  = process.env.GOOGLE_REDIRECT_URI
   || `http://localhost:${PORT}/api/auth/google/callback`;
 
-function makeOAuth2() {
-  return new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
-}
-
-/* ── Microsoft / Outlook ───────────────────────────────────────────── */
 const MS_CLIENT_ID     = process.env.MICROSOFT_CLIENT_ID;
 const MS_CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET;
 const MS_REDIRECT_URI  = process.env.MICROSOFT_REDIRECT_URI
@@ -27,6 +30,200 @@ const MS_AUTH_URL  = 'https://login.microsoftonline.com/common/oauth2/v2.0/autho
 const MS_TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
 const MS_GRAPH     = 'https://graph.microsoft.com/v1.0';
 
+const LAZUROS_URL           = (process.env.LAZUROS_URL || 'http://localhost:8080').replace(/\/$/, '');
+const LAZUROS_TOKEN         = process.env.LAZUROS_TOKEN         || '';
+const LAZUROS_DEFAULT_MODEL = process.env.LAZUROS_DEFAULT_MODEL || 'llama3.2';
+
+/* ── Database ──────────────────────────────────────────────────────────── */
+const db = new Database(DB_PATH);
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
+
+const run = (sql, p = []) => db.prepare(sql).run(...p);
+const all = (sql, p = []) => db.prepare(sql).all(...p);
+const get = (sql, p = []) => db.prepare(sql).get(...p);
+
+/* ── Migrations ────────────────────────────────────────────────────────── */
+const MIGRATIONS = [
+  {
+    id: 1, name: 'create_core_tables',
+    up(d) {
+      d.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          email         TEXT    UNIQUE NOT NULL,
+          name          TEXT,
+          avatar_url    TEXT,
+          password_hash TEXT,
+          google_id     TEXT    UNIQUE,
+          role          TEXT    NOT NULL DEFAULT 'user',
+          created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+          last_login    TEXT
+        );
+        CREATE TABLE IF NOT EXISTS sessions (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          token_hash  TEXT    NOT NULL,
+          expires_at  TEXT    NOT NULL,
+          created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS calendar_tokens (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          provider      TEXT    NOT NULL,
+          access_token  TEXT,
+          refresh_token TEXT,
+          expiry_ms     INTEGER,
+          email         TEXT,
+          UNIQUE(user_id, provider)
+        );
+        CREATE TABLE IF NOT EXISTS items (
+          id             INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id        INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          kind           TEXT    NOT NULL DEFAULT 'task',
+          scope          TEXT    NOT NULL DEFAULT 'day',
+          title          TEXT    NOT NULL,
+          notes          TEXT,
+          parent_id      INTEGER,
+          accent         TEXT,
+          source         TEXT    DEFAULT 'bb',
+          completed      INTEGER DEFAULT 0,
+          year           INTEGER,
+          month          INTEGER,
+          week_start     TEXT,
+          due_date       TEXT,
+          scheduled_time TEXT,
+          scheduled_end  TEXT,
+          end_date       TEXT,
+          location       TEXT,
+          attendees      INTEGER,
+          target         TEXT,
+          created_at     TEXT    DEFAULT (datetime('now'))
+        );
+      `);
+    },
+  },
+  {
+    id: 2, name: 'migrate_legacy_schema',
+    up(d) {
+      try { d.exec(`ALTER TABLE items ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`); } catch {}
+      try { d.exec(`ALTER TABLE items ADD COLUMN end_date TEXT`); } catch {}
+
+      const ct = d.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='calendar_tokens'`).get();
+      if (ct && !ct.sql.includes('user_id')) {
+        d.exec(`
+          ALTER TABLE calendar_tokens RENAME TO calendar_tokens_old;
+          CREATE TABLE calendar_tokens (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id       INTEGER NOT NULL,
+            provider      TEXT    NOT NULL,
+            access_token  TEXT,
+            refresh_token TEXT,
+            expiry_ms     INTEGER,
+            email         TEXT,
+            UNIQUE(user_id, provider)
+          );
+        `);
+        d.exec(`DROP TABLE calendar_tokens_old`);
+      }
+    },
+  },
+  {
+    id: 3, name: 'detach_user_fk',
+    up(d) {
+      /*
+       * Auth is now handled by jkos-auth. Items and calendar_tokens store user_id
+       * as a plain integer (jkos-auth user.id) with no local FK constraint, since
+       * the users table in this DB is no longer authoritative.
+       */
+      d.pragma('foreign_keys = OFF');
+
+      /* Rebuild items without FK to local users table */
+      const itemsCols = `
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id        INTEGER,
+        kind           TEXT    NOT NULL DEFAULT 'task',
+        scope          TEXT    NOT NULL DEFAULT 'day',
+        title          TEXT    NOT NULL,
+        notes          TEXT,
+        parent_id      INTEGER,
+        accent         TEXT,
+        source         TEXT    DEFAULT 'bb',
+        completed      INTEGER DEFAULT 0,
+        year           INTEGER,
+        month          INTEGER,
+        week_start     TEXT,
+        due_date       TEXT,
+        scheduled_time TEXT,
+        scheduled_end  TEXT,
+        end_date       TEXT,
+        location       TEXT,
+        attendees      INTEGER,
+        target         TEXT,
+        created_at     TEXT    DEFAULT (datetime('now'))
+      `;
+      d.exec(`
+        CREATE TABLE items_new (${itemsCols});
+        INSERT INTO items_new SELECT * FROM items;
+        DROP TABLE items;
+        ALTER TABLE items_new RENAME TO items;
+      `);
+
+      /* Rebuild calendar_tokens without FK to local users table */
+      d.exec(`
+        CREATE TABLE calendar_tokens_new (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id       INTEGER NOT NULL,
+          provider      TEXT    NOT NULL,
+          access_token  TEXT,
+          refresh_token TEXT,
+          expiry_ms     INTEGER,
+          email         TEXT,
+          UNIQUE(user_id, provider)
+        );
+        INSERT INTO calendar_tokens_new SELECT * FROM calendar_tokens;
+        DROP TABLE calendar_tokens;
+        ALTER TABLE calendar_tokens_new RENAME TO calendar_tokens;
+      `);
+
+      /* Drop sessions — superseded by jkos-auth sessions table */
+      d.exec(`DROP TABLE IF EXISTS sessions`);
+
+      d.pragma('foreign_keys = ON');
+    },
+  },
+];
+
+function runMigrations() {
+  db.exec(`CREATE TABLE IF NOT EXISTS migrations (
+    id     INTEGER PRIMARY KEY,
+    name   TEXT,
+    run_at TEXT DEFAULT (datetime('now'))
+  )`);
+  const applied = new Set(db.prepare('SELECT id FROM migrations').all().map(r => r.id));
+  for (const m of MIGRATIONS) {
+    if (!applied.has(m.id)) {
+      m.up(db);
+      db.prepare('INSERT INTO migrations (id, name) VALUES (?, ?)').run(m.id, m.name);
+      console.log(`[migration] applied: ${m.name}`);
+    }
+  }
+}
+
+/* ── Google OAuth factory ──────────────────────────────────────────────── */
+function makeOAuth2() {
+  return new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI);
+}
+
+/* ── isoDateStr helpers ────────────────────────────────────────────────── */
+function isoDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function fmt24(d) {
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+/* ── Microsoft / Outlook helpers ───────────────────────────────────────── */
 async function getMsToken(row) {
   if (!row.expiry_ms || Date.now() < row.expiry_ms - 60000) return row.access_token;
   const r = await fetch(MS_TOKEN_URL, {
@@ -40,22 +237,21 @@ async function getMsToken(row) {
   const t = await r.json();
   if (t.error) throw new Error(t.error_description || t.error);
   const expiry = Date.now() + (t.expires_in || 3600) * 1000;
-  await run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? WHERE provider='outlook'`,
-    [t.access_token, expiry]);
+  run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? WHERE id=?`,
+    [t.access_token, expiry, row.id]);
   return t.access_token;
 }
 
-async function syncOutlookEvents(token) {
-  const now = new Date();
-  const end = new Date(now.getTime() + 90 * 86400000);
-  const url = `${MS_GRAPH}/me/calendarView` +
-    `?startDateTime=${now.toISOString()}&endDateTime=${end.toISOString()}` +
-    `&$top=500&$select=subject,start,end,isAllDay,location,bodyPreview`;
+async function syncOutlookEvents(token, userId) {
+  const now = new Date(), end = new Date(now.getTime() + 90 * 86400000);
+  const url = `${MS_GRAPH}/me/calendarView`
+    + `?startDateTime=${now.toISOString()}&endDateTime=${end.toISOString()}`
+    + `&$top=500&$select=subject,start,end,isAllDay,location,bodyPreview`;
   const r    = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.timezone="UTC"' } });
   const data = await r.json();
   if (data.error) throw new Error(data.error.message);
 
-  await run("DELETE FROM items WHERE source='outlook'");
+  run("DELETE FROM items WHERE source='outlook' AND user_id=?", [userId]);
   for (const ev of data.value || []) {
     const isAllDay = !!ev.isAllDay;
     const sd = new Date(ev.start.dateTime + (ev.start.timeZone === 'UTC' ? 'Z' : ''));
@@ -66,10 +262,10 @@ async function syncOutlookEvents(token) {
       const adj = new Date(ed); adj.setDate(adj.getDate() - 1);
       const s = isoDateStr(adj); if (s !== due_date) end_date = s;
     }
-    await run(
-      `INSERT INTO items (kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      ['event','day', ev.subject||'(No title)', ev.bodyPreview||null, 'outlook',
+    run(
+      `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [userId,'event','day',ev.subject||'(No title)',ev.bodyPreview||null,'outlook',
        due_date, isAllDay?null:fmt24(sd), isAllDay?null:fmt24(ed),
        ev.location?.displayName||null, end_date]
     );
@@ -77,7 +273,7 @@ async function syncOutlookEvents(token) {
   return (data.value||[]).length;
 }
 
-/* ── iCloud CalDAV ─────────────────────────────────────────────────── */
+/* ── iCloud CalDAV helpers ─────────────────────────────────────────────── */
 const ICLOUD_CALDAV = 'https://caldav.icloud.com';
 
 function basicAuth(u, p) { return 'Basic ' + Buffer.from(`${u}:${p}`).toString('base64'); }
@@ -101,24 +297,20 @@ function xmlTag(xml, tag) {
   const m = xml.match(new RegExp(`<(?:[^:>]+:)?${tag}[^>]*>([\\s\\S]*?)<\\/(?:[^:>]+:)?${tag}>`, 'i'));
   return m ? m[1].trim() : null;
 }
-
 function xmlTagAll(xml, tag) {
   const re = new RegExp(`<(?:[^:>]+:)?${tag}[^>]*>([\\s\\S]*?)<\\/(?:[^:>]+:)?${tag}>`, 'gi');
   const out = []; let m;
   while ((m = re.exec(xml)) !== null) out.push(m[1].trim());
   return out;
 }
-
 function xmlHref(block) {
   const m = block.match(/<(?:[^:>]+:)?href[^>]*>([^<]+)<\/(?:[^:>]+:)?href>/i);
   return m ? m[1].trim() : null;
 }
-
 function resolveHref(base, href) {
   if (/^https?:\/\//i.test(href)) return href;
   const u = new URL(base); return `${u.protocol}//${u.host}${href}`;
 }
-
 function parseVEvents(ical) {
   const text = ical.replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '');
   const events = []; let ev = null;
@@ -133,83 +325,60 @@ function parseVEvents(ical) {
   }
   return events;
 }
-
 function icalDate(prop) {
   if (!prop) return null;
   const allDay = /VALUE=DATE/i.test(prop.params) || /^\d{8}$/.test(prop.val.trim());
   const v   = prop.val.trim().replace(/Z$/, '');
   const iso = `${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}`;
-  return allDay
-    ? { iso, time: null, allDay: true }
-    : { iso, time: `${v.slice(9,11)}:${v.slice(11,13)}`, allDay: false };
+  return allDay ? { iso, time: null, allDay: true } : { iso, time: `${v.slice(9,11)}:${v.slice(11,13)}`, allDay: false };
 }
-
 function icalText(prop) {
   if (!prop?.val) return null;
   return prop.val.replace(/\\n/g, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\');
 }
 
-async function syncICloudEvents(username, password) {
-  /* 1 — discover principal URL */
+async function syncICloudEvents(username, password, userId) {
   const { text: p0, finalUrl: base0 } = await caldavReq(
-    ICLOUD_CALDAV,
-    'PROPFIND',
+    ICLOUD_CALDAV, 'PROPFIND',
     `<?xml version="1.0"?><D:propfind xmlns:D="DAV:"><D:prop><D:current-user-principal/></D:prop></D:propfind>`,
     username, password, '0'
   );
   const principalHref = xmlHref(xmlTag(p0, 'current-user-principal') || '');
   if (!principalHref) throw new Error('iCloud CalDAV: could not discover principal');
 
-  /* 2 — discover calendar-home-set */
   const principalUrl = resolveHref(base0, principalHref);
   const { text: p1, finalUrl: base1 } = await caldavReq(
-    principalUrl,
-    'PROPFIND',
+    principalUrl, 'PROPFIND',
     `<?xml version="1.0"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-home-set/></D:prop></D:propfind>`,
     username, password, '0'
   );
   const homeHref = xmlHref(xmlTag(p1, 'calendar-home-set') || '');
   if (!homeHref) throw new Error('iCloud CalDAV: could not discover calendar home');
 
-  /* 3 — list calendars (Depth:1 on home) */
   const homeUrl = resolveHref(base1, homeHref);
   const { text: p2 } = await caldavReq(
-    homeUrl,
-    'PROPFIND',
+    homeUrl, 'PROPFIND',
     `<?xml version="1.0"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:resourcetype/><D:displayname/></D:prop></D:propfind>`,
     username, password, '1'
   );
   const calUrls = xmlTagAll(p2, 'response')
     .filter(b => /<(?:[^:>]+:)?calendar\s*\/>/i.test(b))
-    .map(b => xmlHref(b))
-    .filter(Boolean)
+    .map(b => xmlHref(b)).filter(Boolean)
     .map(href => resolveHref(homeUrl, href));
-
   if (!calUrls.length) throw new Error('iCloud CalDAV: no calendars found');
 
-  /* 4 — REPORT each calendar for events in the next 90 days */
   const now = new Date(), far = new Date(now.getTime() + 90 * 86400000);
   const startZ = now.toISOString().replace(/[-:]/g,'').slice(0,15) + 'Z';
   const endZ   = far.toISOString().replace(/[-:]/g,'').slice(0,15) + 'Z';
 
-  await run("DELETE FROM items WHERE source='icloud'");
+  run("DELETE FROM items WHERE source='icloud' AND user_id=?", [userId]);
   let total = 0;
 
   for (const calUrl of calUrls) {
     let reportText;
     try {
       const { text } = await caldavReq(calUrl, 'REPORT',
-        `<?xml version="1.0"?>
-<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
-  <D:prop><D:getetag/><C:calendar-data/></D:prop>
-  <C:filter>
-    <C:comp-filter name="VCALENDAR">
-      <C:comp-filter name="VEVENT">
-        <C:time-range start="${startZ}" end="${endZ}"/>
-      </C:comp-filter>
-    </C:comp-filter>
-  </C:filter>
-</C:calendar-query>`,
+        `<?xml version="1.0"?><C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/><C:calendar-data/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"><C:time-range start="${startZ}" end="${endZ}"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>`,
         username, password, '1');
       reportText = text;
     } catch (e) { console.warn(`iCloud: skipping ${calUrl}: ${e.message}`); continue; }
@@ -219,13 +388,8 @@ async function syncICloudEvents(username, password) {
 
     for (const icalRaw of calDatas) {
       for (const ev of parseVEvents(icalRaw)) {
-        if (ev['RRULE']) {
-          console.warn(`iCloud: recurring event "${icalText(ev['SUMMARY'])}" — only the next occurrence will appear; full recurrence expansion not supported`);
-        }
-        const start = icalDate(ev['DTSTART']);
-        const end   = icalDate(ev['DTEND']);
+        const start = icalDate(ev['DTSTART']), end = icalDate(ev['DTEND']);
         if (!start) continue;
-
         let end_date = null;
         if (start.allDay && end) {
           const ed = new Date(end.iso + 'T00:00:00Z'); ed.setDate(ed.getDate() - 1);
@@ -233,15 +397,12 @@ async function syncICloudEvents(username, password) {
         } else if (!start.allDay && end && end.iso !== start.iso) {
           end_date = end.iso;
         }
-
-        await run(
-          `INSERT INTO items (kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
-           VALUES (?,?,?,?,?,?,?,?,?,?)`,
-          ['event','day',
-           icalText(ev['SUMMARY']) || '(No title)',
-           icalText(ev['DESCRIPTION']),
-           'icloud', start.iso, start.time, end?.time||null,
-           icalText(ev['LOCATION']), end_date]
+        run(
+          `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          [userId,'event','day', icalText(ev['SUMMARY'])||'(No title)',
+           icalText(ev['DESCRIPTION']),'icloud',start.iso,start.time,end?.time||null,
+           icalText(ev['LOCATION']),end_date]
         );
         total++;
       }
@@ -250,18 +411,51 @@ async function syncICloudEvents(username, password) {
   return total;
 }
 
-const JWT_SECRET             = process.env.JWT_SECRET             || '';
-const LOGIN_PASSWORD         = process.env.LOGIN_PASSWORD         || '';
-const SHELL_URL              = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\/$/, '');
-const LAZUROS_URL            = (process.env.LAZUROS_URL || 'http://localhost:8080').replace(/\/$/, '');
-const LAZUROS_TOKEN          = process.env.LAZUROS_TOKEN          || '';
-const LAZUROS_DEFAULT_MODEL  = process.env.LAZUROS_DEFAULT_MODEL  || 'llama3.2';
+async function syncGoogleEvents(auth, userId) {
+  const calendar = google.calendar({ version: 'v3', auth });
+  const now = new Date();
+  const { data } = await calendar.events.list({
+    calendarId: 'primary',
+    timeMin: now.toISOString(),
+    timeMax: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+    singleEvents: true, orderBy: 'startTime', maxResults: 500,
+  });
 
+  run("DELETE FROM items WHERE source='google' AND user_id=?", [userId]);
+
+  for (const ev of (data.items || [])) {
+    const start = ev.start?.dateTime || ev.start?.date;
+    if (!start) continue;
+    const isAllDay = !!ev.start?.date;
+    const sd = new Date(start);
+    const due_date = isoDateStr(sd);
+    let end_date = null;
+    if (ev.end) {
+      const rawEnd = ev.end.dateTime || ev.end.date;
+      if (rawEnd) {
+        const edObj = new Date(rawEnd);
+        if (isAllDay) edObj.setDate(edObj.getDate() - 1);
+        const endStr = isoDateStr(edObj);
+        if (endStr !== due_date) end_date = endStr;
+      }
+    }
+    run(
+      `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [userId,'event','day',ev.summary||'(No title)',ev.description||null,'google',
+       due_date, isAllDay?null:fmt24(sd),
+       (ev.end?.dateTime && !isAllDay)?fmt24(new Date(ev.end.dateTime)):null,
+       ev.location||null, end_date]
+    );
+  }
+  return (data.items||[]).length;
+}
+
+/* ── Express app ───────────────────────────────────────────────────────── */
 const app = express();
 app.use(cookieParser());
 app.use(express.json());
 
-// CORS — allow the ORDECK shell to make credentialed requests
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin === SHELL_URL) {
@@ -274,276 +468,47 @@ app.use((req, res, next) => {
   next();
 });
 
-// JWT guard — skips calendar OAuth callback routes (they use their own auth flows)
+/* ── Auth middleware (jkos SSO) ────────────────────────────────────────── */
+/* These paths are reachable without a valid jkos_token cookie */
 const PUBLIC_PATHS = [
   '/health',
-  '/api/auth/login',
-  '/api/auth/logout',
-  '/api/auth/me',
-  '/api/auth/google',
-  '/api/auth/google/callback',
-  '/api/auth/outlook',
-  '/api/auth/outlook/callback',
+  '/api/auth/google',     // initiates Google Calendar OAuth
+  '/api/auth/outlook',    // initiates Outlook Calendar OAuth
 ];
+
+const authMiddleware = JKOS_AUTH_PUBLIC_KEY
+  ? jkosAuth({ publicKey: JKOS_AUTH_PUBLIC_KEY })
+  : (req, _res, next) => { req.user = { sub: 1, role: 'admin' }; next(); }; // dev fallback
+
 app.use((req, res, next) => {
-  if (!JWT_SECRET) return next(); // auth not configured — open access (dev)
   if (PUBLIC_PATHS.some(p => req.path === p || req.path.startsWith(p + '/'))) return next();
-
-  const token = req.cookies.ordeck_access
-    || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
-
-  if (!token) return res.status(401).json({ error: 'Authentication required' });
-  try {
-    req.user = jwt.verify(token, JWT_SECRET, { issuer: 'ordeck-auth' });
-    next();
-  } catch {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
+  authMiddleware(req, res, next);
 });
 
+/* Block writes for guest users */
+app.use((req, res, next) => {
+  if (req.user?.role === 'guest' && ['POST', 'PATCH', 'DELETE'].includes(req.method)) {
+    return res.status(403).json({ error: 'Guest access is read-only' });
+  }
+  next();
+});
+
+/* ── Health ────────────────────────────────────────────────────────────── */
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'beigeboard' }));
 
-/* ── Password login ────────────────────────────────────────────────── */
-app.post('/api/auth/login', (req, res) => {
-  if (!LOGIN_PASSWORD) return res.status(501).json({ error: 'LOGIN_PASSWORD not configured' });
-  const { password } = req.body || {};
-  if (typeof password !== 'string' || !password) return res.status(401).json({ error: 'Invalid password' });
-
-  const hashPw = s => crypto.createHash('sha256').update(s).digest();
-  const match = crypto.timingSafeEqual(hashPw(password), hashPw(LOGIN_PASSWORD));
-  if (!match) return res.status(401).json({ error: 'Invalid password' });
-
-  const token = jwt.sign({ sub: 'user' }, JWT_SECRET, { issuer: 'ordeck-auth', expiresIn: '7d' });
-  res.cookie('ordeck_access', token, {
-    httpOnly: true, sameSite: 'lax', secure: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
-  res.json({ ok: true });
-});
-
-app.post('/api/auth/logout', (req, res) => {
-  res.clearCookie('ordeck_access', { httpOnly: true, sameSite: 'lax', secure: true });
-  res.json({ ok: true });
-});
-
+/* ── Auth: me ──────────────────────────────────────────────────────────── */
 app.get('/api/auth/me', (req, res) => {
-  if (!JWT_SECRET) return res.json({ authenticated: true });
-  const token = req.cookies.ordeck_access
-    || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
-  if (!token) return res.json({ authenticated: false });
-  try {
-    jwt.verify(token, JWT_SECRET, { issuer: 'ordeck-auth' });
-    res.json({ authenticated: true });
-  } catch {
-    res.json({ authenticated: false });
-  }
+  res.json({ user: req.user });
 });
 
-/* ── Database ──────────────────────────────────────────────────────── */
-const db = new sqlite3.Database(DB_PATH);
-
-const run = (sql, p = []) => new Promise((res, rej) =>
-  db.run(sql, p, function (e) { e ? rej(e) : res(this); }));
-const all = (sql, p = []) => new Promise((res, rej) =>
-  db.all(sql, p, (e, r) => e ? rej(e) : res(r)));
-const get = (sql, p = []) => new Promise((res, rej) =>
-  db.get(sql, p, (e, r) => e ? rej(e) : res(r)));
-
-function isoDateStr(d) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-
-function fmt24(d) {
-  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-}
-
-async function syncGoogleEvents(auth) {
-  const calendar = google.calendar({ version: 'v3', auth });
-  const now = new Date();
-  const { data } = await calendar.events.list({
-    calendarId: 'primary',
-    timeMin: now.toISOString(),
-    timeMax: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-    singleEvents: true,
-    orderBy: 'startTime',
-    maxResults: 500,
-  });
-
-  await run("DELETE FROM items WHERE source = 'google'");
-
-  for (const ev of (data.items || [])) {
-    const start    = ev.start?.dateTime || ev.start?.date;
-    if (!start) continue;
-    const isAllDay = !!ev.start?.date;
-    const sd       = new Date(start);
-    const due_date = isoDateStr(sd);
-
-    /* Compute end_date for multi-day events */
-    let end_date = null;
-    if (ev.end) {
-      const rawEnd = ev.end.dateTime || ev.end.date;
-      if (rawEnd) {
-        const edObj = new Date(rawEnd);
-        if (isAllDay) edObj.setDate(edObj.getDate() - 1); // GCal all-day end is exclusive
-        const endStr = isoDateStr(edObj);
-        if (endStr !== due_date) end_date = endStr;
-      }
-    }
-
-    await run(
-      `INSERT INTO items (kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      ['event','day', ev.summary || '(No title)', ev.description || null, 'google',
-       due_date,
-       isAllDay ? null : fmt24(sd),
-       (ev.end?.dateTime && !isAllDay) ? fmt24(new Date(ev.end.dateTime)) : null,
-       ev.location || null, end_date]
-    );
-  }
-  return (data.items || []).length;
-}
-
-async function init() {
-  await run(`CREATE TABLE IF NOT EXISTS calendar_tokens (
-    provider      TEXT PRIMARY KEY,
-    access_token  TEXT,
-    refresh_token TEXT,
-    expiry_ms     INTEGER,
-    email         TEXT
-  )`);
-
-  await run(`CREATE TABLE IF NOT EXISTS items (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind           TEXT    NOT NULL DEFAULT 'task',
-    scope          TEXT    NOT NULL DEFAULT 'day',
-    title          TEXT    NOT NULL,
-    notes          TEXT,
-    parent_id      INTEGER,
-    accent         TEXT,
-    source         TEXT    DEFAULT 'bb',
-    completed      INTEGER DEFAULT 0,
-    year           INTEGER,
-    month          INTEGER,
-    week_start     TEXT,
-    due_date       TEXT,
-    scheduled_time TEXT,
-    scheduled_end  TEXT,
-    end_date       TEXT,
-    location       TEXT,
-    attendees      INTEGER,
-    target         TEXT,
-    created_at     TEXT    DEFAULT (datetime('now'))
-  )`);
-
-  /* Migration: add end_date to existing databases */
-  try { await run('ALTER TABLE items ADD COLUMN end_date TEXT'); } catch(e) {
-    if (!String(e).includes('duplicate column name')) throw e;
-  }
-
-  const count = await get('SELECT COUNT(*) as n FROM items');
-  if (count.n === 0) await seedDefaults();
-}
-
-/* Seed a minimal starting structure so the app isn't blank on first run */
-async function seedDefaults() {
-  const now = new Date();
-  const yr  = now.getFullYear();
-  const mo  = now.getMonth() + 1;
-
-  /* Monday of current week */
-  const d = new Date(now);
-  d.setHours(0,0,0,0);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  const weekStr = d.toISOString().slice(0, 10);
-  const todayStr = now.toISOString().slice(0, 10);
-
-  const ins = async (data) => {
-    const cols = Object.keys(data).join(', ');
-    const phs  = Object.keys(data).map(() => '?').join(', ');
-    const r = await run(`INSERT INTO items (${cols}) VALUES (${phs})`, Object.values(data));
-    return r.lastID;
-  };
-
-  const g1 = await ins({ kind: 'goal', scope: 'year', title: 'Build something meaningful', accent: '#B85C3A', year: yr, source: 'bb' });
-  const g2 = await ins({ kind: 'goal', scope: 'year', title: 'Stay healthy and consistent', accent: '#5A8A5A', year: yr, source: 'bb' });
-
-  const m1 = await ins({ kind: 'goal', scope: 'month', title: 'Ship a working prototype', accent: '#B85C3A', parent_id: g1, year: yr, month: mo, source: 'bb' });
-  const m2 = await ins({ kind: 'goal', scope: 'month', title: 'Establish a daily routine', accent: '#5A8A5A', parent_id: g2, year: yr, month: mo, source: 'bb' });
-
-  const w1 = await ins({ kind: 'goal', scope: 'week', title: 'Foundation — get the basics running', accent: '#B85C3A', parent_id: m1, week_start: weekStr, source: 'bb' });
-  const w2 = await ins({ kind: 'goal', scope: 'week', title: 'First week of the new routine', accent: '#5A8A5A', parent_id: m2, week_start: weekStr, source: 'bb' });
-
-  await ins({ kind: 'task', scope: 'day', title: 'Define the core feature set', accent: '#B85C3A', parent_id: w1, due_date: todayStr, source: 'bb' });
-  await ins({ kind: 'task', scope: 'day', title: 'Set up the project structure', accent: '#B85C3A', parent_id: w1, due_date: todayStr, source: 'bb' });
-  await ins({ kind: 'task', scope: 'day', title: 'Morning stretch — 15 min', accent: '#5A8A5A', parent_id: w2, due_date: todayStr, scheduled_time: '07:00', scheduled_end: '07:15', source: 'bb' });
-}
-
-/* ── Helpers ───────────────────────────────────────────────────────── */
-function toRow(raw) {
-  if (!raw) return null;
-  return { ...raw, completed: raw.completed === 1 };
-}
-
-async function cascadeDelete(id) {
-  const children = await all('SELECT id FROM items WHERE parent_id = ?', [id]);
-  for (const c of children) await cascadeDelete(c.id);
-  await run('DELETE FROM items WHERE id = ?', [id]);
-}
-
-/* ── Routes ────────────────────────────────────────────────────────── */
-app.get('/api/items', async (req, res) => {
-  try {
-    const rows = await all('SELECT * FROM items ORDER BY id ASC');
-    res.json(rows.map(toRow));
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/items', async (req, res) => {
-  try {
-    const d = req.body;
-    const cols = Object.keys(d).filter(k => k !== 'id').join(', ');
-    const phs  = Object.keys(d).filter(k => k !== 'id').map(() => '?').join(', ');
-    const vals = Object.keys(d).filter(k => k !== 'id').map(k =>
-      typeof d[k] === 'boolean' ? (d[k] ? 1 : 0) : d[k]);
-    const r = await run(`INSERT INTO items (${cols}) VALUES (${phs})`, vals);
-    const row = await get('SELECT * FROM items WHERE id = ?', [r.lastID]);
-    res.status(201).json(toRow(row));
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.patch('/api/items/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const d = req.body;
-    const sets = Object.keys(d).map(k => `${k} = ?`).join(', ');
-    const vals = Object.keys(d).map(k =>
-      typeof d[k] === 'boolean' ? (d[k] ? 1 : 0) : d[k]);
-    await run(`UPDATE items SET ${sets} WHERE id = ?`, [...vals, id]);
-    const row = await get('SELECT * FROM items WHERE id = ?', [id]);
-    res.json(toRow(row));
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/api/items/:id', async (req, res) => {
-  try {
-    await cascadeDelete(parseInt(req.params.id, 10));
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-/* ── Google Calendar OAuth ─────────────────────────────────────────── */
+/* ── Auth: Google Calendar OAuth ───────────────────────────────────────── */
 app.get('/api/auth/google', (req, res) => {
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
-    return res.status(501).send(
-      'Google credentials not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars.'
-    );
+    return res.status(501).send('Google credentials not configured.');
   }
   const url = makeOAuth2().generateAuthUrl({
     access_type: 'offline',
-    scope: [
-      'https://www.googleapis.com/auth/calendar.readonly',
-      'https://www.googleapis.com/auth/userinfo.email',
-    ],
+    scope: ['https://www.googleapis.com/auth/calendar.readonly'],
     prompt: 'consent',
   });
   res.redirect(url);
@@ -555,78 +520,43 @@ app.get('/api/auth/google/callback', async (req, res) => {
     `<script>window.opener?.postMessage(${JSON.stringify(msg)},window.location.origin);window.close();</script>`
   );
   if (error) return close({ type: 'google-auth-error', error });
+
   try {
     const oauth2 = makeOAuth2();
     const { tokens } = await oauth2.getToken(code);
     oauth2.setCredentials(tokens);
 
-    const { data: u } = await google.oauth2({ version: 'v2', auth: oauth2 }).userinfo.get();
-
-    await run(
-      `INSERT OR REPLACE INTO calendar_tokens (provider,access_token,refresh_token,expiry_ms,email)
-       VALUES (?,?,?,?,?)`,
-      ['google', tokens.access_token, tokens.refresh_token || null, tokens.expiry_date || null, u.email]
+    run(
+      `INSERT INTO calendar_tokens (user_id,provider,access_token,refresh_token,expiry_ms,email)
+       VALUES (?,?,?,?,?,?)
+       ON CONFLICT(user_id,provider) DO UPDATE SET
+         access_token=excluded.access_token,
+         refresh_token=COALESCE(excluded.refresh_token, refresh_token),
+         expiry_ms=excluded.expiry_ms, email=excluded.email`,
+      [req.user.sub, 'google', tokens.access_token, tokens.refresh_token||null, tokens.expiry_date||null, req.user.email||null]
     );
 
-    oauth2.on('tokens', async t => {
-      const fields = t.refresh_token
-        ? `access_token=?,refresh_token=?,expiry_ms=?`
-        : `access_token=?,expiry_ms=?`;
-      const vals = t.refresh_token
-        ? [t.access_token, t.refresh_token, t.expiry_date]
-        : [t.access_token, t.expiry_date];
-      await run(`UPDATE calendar_tokens SET ${fields} WHERE provider='google'`, vals);
+    oauth2.on('tokens', t => {
+      run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? ${t.refresh_token?',refresh_token=?':''} WHERE user_id=? AND provider='google'`,
+        t.refresh_token ? [t.access_token, t.expiry_date, t.refresh_token, req.user.sub] : [t.access_token, t.expiry_date, req.user.sub]);
     });
 
-    await syncGoogleEvents(oauth2);
-    close({ type: 'google-auth-success', email: u.email });
+    try { await syncGoogleEvents(oauth2, req.user.sub); } catch (e) { console.warn('Google calendar sync:', e.message); }
+
+    close({ type: 'google-auth-success', email: req.user.email });
   } catch (e) {
-    console.error('Google auth callback error:', e);
+    console.error('Google callback error:', e);
     close({ type: 'google-auth-error', error: e.message });
   }
 });
 
-app.get('/api/auth/google/status', async (req, res) => {
-  try {
-    const row = await get('SELECT email FROM calendar_tokens WHERE provider = ?', ['google']);
-    res.json({ connected: !!row, email: row?.email || null });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/api/auth/google', async (req, res) => {
-  try {
-    await run("DELETE FROM calendar_tokens WHERE provider = 'google'");
-    await run("DELETE FROM items WHERE source = 'google'");
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/calendar/google/sync', async (req, res) => {
-  try {
-    const row = await get('SELECT * FROM calendar_tokens WHERE provider = ?', ['google']);
-    if (!row) return res.status(401).json({ error: 'Not connected' });
-    const oauth2 = makeOAuth2();
-    oauth2.setCredentials({ access_token: row.access_token, refresh_token: row.refresh_token, expiry_date: row.expiry_ms });
-    oauth2.on('tokens', async t => {
-      const fields = t.refresh_token ? `access_token=?,refresh_token=?,expiry_ms=?` : `access_token=?,expiry_ms=?`;
-      const vals   = t.refresh_token ? [t.access_token, t.refresh_token, t.expiry_date] : [t.access_token, t.expiry_date];
-      await run(`UPDATE calendar_tokens SET ${fields} WHERE provider='google'`, vals);
-    });
-    const count = await syncGoogleEvents(oauth2);
-    res.json({ ok: true, synced: count });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-/* ── Outlook / Microsoft Calendar OAuth ───────────────────────────── */
+/* ── Auth: Outlook Calendar OAuth ──────────────────────────────────────── */
 app.get('/api/auth/outlook', (req, res) => {
   if (!MS_CLIENT_ID || !MS_CLIENT_SECRET) {
-    return res.status(501).send(
-      'Microsoft credentials not configured. Set MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET env vars.'
-    );
+    return res.status(501).send('Microsoft credentials not configured.');
   }
   const params = new URLSearchParams({
-    client_id: MS_CLIENT_ID,
-    response_type: 'code',
+    client_id: MS_CLIENT_ID, response_type: 'code',
     redirect_uri: MS_REDIRECT_URI,
     scope: 'offline_access Calendars.Read User.Read',
     response_mode: 'query',
@@ -640,6 +570,7 @@ app.get('/api/auth/outlook/callback', async (req, res) => {
     `<script>window.opener?.postMessage(${JSON.stringify(msg)},window.location.origin);window.close();</script>`
   );
   if (error) return close({ type: 'outlook-auth-error', error });
+
   try {
     const r = await fetch(MS_TOKEN_URL, {
       method: 'POST',
@@ -658,100 +589,189 @@ app.get('/api/auth/outlook/callback', async (req, res) => {
     }).then(r => r.json());
     const email = me.mail || me.userPrincipalName || '';
 
-    await run(
-      `INSERT OR REPLACE INTO calendar_tokens (provider,access_token,refresh_token,expiry_ms,email)
-       VALUES (?,?,?,?,?)`,
-      ['outlook', t.access_token, t.refresh_token || null, expiry, email]
+    run(
+      `INSERT INTO calendar_tokens (user_id,provider,access_token,refresh_token,expiry_ms,email)
+       VALUES (?,?,?,?,?,?)
+       ON CONFLICT(user_id,provider) DO UPDATE SET
+         access_token=excluded.access_token, refresh_token=excluded.refresh_token,
+         expiry_ms=excluded.expiry_ms, email=excluded.email`,
+      [req.user.sub, 'outlook', t.access_token, t.refresh_token||null, expiry, email]
     );
 
-    await syncOutlookEvents(t.access_token);
+    await syncOutlookEvents(t.access_token, req.user.sub);
     close({ type: 'outlook-auth-success', email });
   } catch (e) {
-    console.error('Outlook auth callback error:', e);
+    console.error('Outlook callback error:', e);
     close({ type: 'outlook-auth-error', error: e.message });
   }
 });
 
-app.get('/api/auth/outlook/status', async (req, res) => {
+/* ── Items ─────────────────────────────────────────────────────────────── */
+function toRow(raw) {
+  if (!raw) return null;
+  return { ...raw, completed: raw.completed === 1 };
+}
+
+function cascadeDelete(id, userId) {
+  const children = all('SELECT id FROM items WHERE parent_id = ? AND user_id = ?', [id, userId]);
+  for (const c of children) cascadeDelete(c.id, userId);
+  run('DELETE FROM items WHERE id = ? AND user_id = ?', [id, userId]);
+}
+
+app.get('/api/items', async (req, res) => {
   try {
-    const row = await get('SELECT email FROM calendar_tokens WHERE provider = ?', ['outlook']);
+    let rows = all('SELECT * FROM items WHERE user_id = ? ORDER BY id ASC', [req.user.sub]);
+    if (rows.length === 0 && req.user.role !== 'guest') {
+      await seedDefaults(req.user.sub);
+      rows = all('SELECT * FROM items WHERE user_id = ? ORDER BY id ASC', [req.user.sub]);
+    }
+    res.json(rows.map(toRow));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/items', (req, res) => {
+  try {
+    const d = { ...req.body, user_id: req.user.sub };
+    const keys = Object.keys(d).filter(k => k !== 'id');
+    const cols = keys.join(', ');
+    const phs  = keys.map(() => '?').join(', ');
+    const vals = keys.map(k => typeof d[k] === 'boolean' ? (d[k] ? 1 : 0) : d[k]);
+    const r   = run(`INSERT INTO items (${cols}) VALUES (${phs})`, vals);
+    const row = get('SELECT * FROM items WHERE id = ?', [r.lastInsertRowid]);
+    res.status(201).json(toRow(row));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.patch('/api/items/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const d = req.body;
+    const sets = Object.keys(d).map(k => `${k} = ?`).join(', ');
+    const vals = Object.keys(d).map(k => typeof d[k] === 'boolean' ? (d[k] ? 1 : 0) : d[k]);
+    run(`UPDATE items SET ${sets} WHERE id = ? AND user_id = ?`, [...vals, id, req.user.sub]);
+    const row = get('SELECT * FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub]);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(toRow(row));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/items/:id', (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const row = get('SELECT id FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub]);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    cascadeDelete(id, req.user.sub);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/* ── Calendar status routes ────────────────────────────────────────────── */
+app.get('/api/auth/google/status', (req, res) => {
+  try {
+    const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'google']);
     res.json({ connected: !!row, email: row?.email || null });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/auth/outlook', async (req, res) => {
+app.delete('/api/auth/google', (req, res) => {
   try {
-    await run("DELETE FROM calendar_tokens WHERE provider = 'outlook'");
-    await run("DELETE FROM items WHERE source = 'outlook'");
+    run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='google'", [req.user.sub]);
+    run("DELETE FROM items WHERE source='google' AND user_id=?", [req.user.sub]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/calendar/google/sync', async (req, res) => {
+  try {
+    const row = get('SELECT * FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'google']);
+    if (!row) return res.status(401).json({ error: 'Not connected' });
+    const oauth2 = makeOAuth2();
+    oauth2.setCredentials({ access_token: row.access_token, refresh_token: row.refresh_token, expiry_date: row.expiry_ms });
+    oauth2.on('tokens', t => {
+      run(`UPDATE calendar_tokens SET access_token=?, expiry_ms=? ${t.refresh_token?',refresh_token=?':''} WHERE id=?`,
+        t.refresh_token ? [t.access_token, t.expiry_date, t.refresh_token, row.id] : [t.access_token, t.expiry_date, row.id]);
+    });
+    const count = await syncGoogleEvents(oauth2, req.user.sub);
+    res.json({ ok: true, synced: count });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/auth/outlook/status', (req, res) => {
+  try {
+    const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'outlook']);
+    res.json({ connected: !!row, email: row?.email || null });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/auth/outlook', (req, res) => {
+  try {
+    run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='outlook'", [req.user.sub]);
+    run("DELETE FROM items WHERE source='outlook' AND user_id=?", [req.user.sub]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/calendar/outlook/sync', async (req, res) => {
   try {
-    const row = await get('SELECT * FROM calendar_tokens WHERE provider = ?', ['outlook']);
+    const row = get('SELECT * FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'outlook']);
     if (!row) return res.status(401).json({ error: 'Not connected' });
     const token = await getMsToken(row);
-    const count = await syncOutlookEvents(token);
+    const count = await syncOutlookEvents(token, req.user.sub);
     res.json({ ok: true, synced: count });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-/* ── iCloud CalDAV credential auth ────────────────────────────────── */
-app.post('/api/auth/icloud', async (req, res) => {
-  const { username, appPassword } = req.body || {};
-  if (!username || !appPassword) return res.status(400).json({ error: 'username and appPassword required' });
+app.get('/api/auth/icloud/status', (req, res) => {
   try {
-    const count = await syncICloudEvents(username, appPassword);
-    await run(
-      `INSERT OR REPLACE INTO calendar_tokens (provider,access_token,refresh_token,expiry_ms,email)
-       VALUES (?,?,?,?,?)`,
-      ['icloud', appPassword, null, null, username]
-    );
-    res.json({ ok: true, synced: count, email: username });
-  } catch (e) {
-    const status = e.status === 401 ? 401 : 500;
-    res.status(status).json({ error: e.message });
-  }
-});
-
-app.get('/api/auth/icloud/status', async (req, res) => {
-  try {
-    const row = await get('SELECT email FROM calendar_tokens WHERE provider = ?', ['icloud']);
+    const row = get('SELECT email FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'icloud']);
     res.json({ connected: !!row, email: row?.email || null });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/auth/icloud', async (req, res) => {
+app.post('/api/auth/icloud', async (req, res) => {
+  const { username, appPassword } = req.body || {};
+  if (!username || !appPassword) return res.status(400).json({ error: 'username and appPassword required' });
   try {
-    await run("DELETE FROM calendar_tokens WHERE provider = 'icloud'");
-    await run("DELETE FROM items WHERE source = 'icloud'");
+    const count = await syncICloudEvents(username, appPassword, req.user.sub);
+    run(
+      `INSERT INTO calendar_tokens (user_id,provider,access_token,email)
+       VALUES (?,?,?,?)
+       ON CONFLICT(user_id,provider) DO UPDATE SET access_token=excluded.access_token, email=excluded.email`,
+      [req.user.sub, 'icloud', appPassword, username]
+    );
+    res.json({ ok: true, synced: count, email: username });
+  } catch (e) {
+    res.status(e.status === 401 ? 401 : 500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/auth/icloud', (req, res) => {
+  try {
+    run("DELETE FROM calendar_tokens WHERE user_id=? AND provider='icloud'", [req.user.sub]);
+    run("DELETE FROM items WHERE source='icloud' AND user_id=?", [req.user.sub]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/calendar/icloud/sync', async (req, res) => {
   try {
-    const row = await get('SELECT * FROM calendar_tokens WHERE provider = ?', ['icloud']);
+    const row = get('SELECT * FROM calendar_tokens WHERE user_id=? AND provider=?', [req.user.sub, 'icloud']);
     if (!row) return res.status(401).json({ error: 'Not connected' });
-    const count = await syncICloudEvents(row.email, row.access_token);
+    const count = await syncICloudEvents(row.email, row.access_token, req.user.sub);
     res.json({ ok: true, synced: count });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-/* ── AI endpoints (via LazurOS) ────────────────────────────────────── */
-
-// Parse natural language into structured task fields
-// POST /api/ai/parse-task  { text: string, today?: "YYYY-MM-DD" }
+/* ── AI endpoint ───────────────────────────────────────────────────────── */
 app.post('/api/ai/parse-task', async (req, res) => {
   try {
     const { text, today } = req.body;
     if (!text?.trim()) return res.status(400).json({ error: 'text is required' });
 
-    const todayStr = today || new Date().toISOString().split('T')[0];
-    const d = new Date(todayStr + 'T12:00:00');
+    const todayStr    = today || new Date().toISOString().split('T')[0];
+    const d           = new Date(todayStr + 'T12:00:00');
     const tomorrowStr = new Date(d.getTime() + 86400000).toISOString().split('T')[0];
-    const dayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+    const dayName     = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
 
     const prompt = `Parse this task or event description into structured JSON fields.
 
@@ -795,29 +815,59 @@ Return ONLY a JSON object with exactly these fields:
     }
 
     const aiData = await r.json();
-    const raw = aiData?.message?.content ?? '';
-    const start = raw.indexOf('{');
-    const end   = raw.lastIndexOf('}') + 1;
+    const raw    = aiData?.message?.content ?? '';
+    const start  = raw.indexOf('{');
+    const end    = raw.lastIndexOf('}') + 1;
     if (start < 0 || end <= start) return res.status(502).json({ error: 'AI returned no JSON', raw });
 
-    const parsed = JSON.parse(raw.slice(start, end));
-    res.json(parsed);
+    res.json(JSON.parse(raw.slice(start, end)));
   } catch (e) {
     console.error('[ai/parse-task]', e);
     res.status(500).json({ error: e.message });
   }
 });
 
-/* ── Static files + SPA fallback ──────────────────────────────────── */
-const STATIC = process.env.STATIC_DIR || path.join(__dirname, '..', 'dist');
-app.use(express.static(STATIC));
+/* ── Static + SPA fallback ─────────────────────────────────────────────── */
+app.use(express.static(STATIC_DIR));
 app.get('*', (req, res) => {
-  res.sendFile(path.join(STATIC, 'index.html'), err => {
+  res.sendFile(path.join(STATIC_DIR, 'index.html'), err => {
     if (err) res.status(404).json({ error: 'Not found' });
   });
 });
 
-/* ── Boot ──────────────────────────────────────────────────────────── */
-init().then(() => {
+/* ── Seed defaults (lazy, on first item load per user) ─────────────────── */
+async function seedDefaults(userId) {
+  const now = new Date();
+  const yr  = now.getFullYear();
+  const mo  = now.getMonth() + 1;
+  const d   = new Date(now);
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  const weekStr  = d.toISOString().slice(0, 10);
+  const todayStr = now.toISOString().slice(0, 10);
+
+  const ins = (data) => {
+    const cols = Object.keys(data).join(', ');
+    const phs  = Object.keys(data).map(() => '?').join(', ');
+    const r = run(`INSERT INTO items (${cols}) VALUES (${phs})`, Object.values(data));
+    return r.lastInsertRowid;
+  };
+
+  const g1 = ins({ user_id: userId, kind:'goal',scope:'year',title:'Build something meaningful',accent:'#B85C3A',year:yr,source:'bb' });
+  const g2 = ins({ user_id: userId, kind:'goal',scope:'year',title:'Stay healthy and consistent',accent:'#5A8A5A',year:yr,source:'bb' });
+  const m1 = ins({ user_id: userId, kind:'goal',scope:'month',title:'Ship a working prototype',accent:'#B85C3A',parent_id:g1,year:yr,month:mo,source:'bb' });
+  const m2 = ins({ user_id: userId, kind:'goal',scope:'month',title:'Establish a daily routine',accent:'#5A8A5A',parent_id:g2,year:yr,month:mo,source:'bb' });
+  const w1 = ins({ user_id: userId, kind:'goal',scope:'week',title:'Foundation — get the basics running',accent:'#B85C3A',parent_id:m1,week_start:weekStr,source:'bb' });
+  const w2 = ins({ user_id: userId, kind:'goal',scope:'week',title:'First week of the new routine',accent:'#5A8A5A',parent_id:m2,week_start:weekStr,source:'bb' });
+  ins({ user_id: userId, kind:'task',scope:'day',title:'Define the core feature set',accent:'#B85C3A',parent_id:w1,due_date:todayStr,source:'bb' });
+  ins({ user_id: userId, kind:'task',scope:'day',title:'Set up the project structure',accent:'#B85C3A',parent_id:w1,due_date:todayStr,source:'bb' });
+  ins({ user_id: userId, kind:'task',scope:'day',title:'Morning stretch — 15 min',accent:'#5A8A5A',parent_id:w2,due_date:todayStr,scheduled_time:'07:00',scheduled_end:'07:15',source:'bb' });
+}
+
+/* ── Boot ──────────────────────────────────────────────────────────────── */
+function boot() {
+  runMigrations();
   app.listen(PORT, () => console.log(`BeigeBoard running on :${PORT}`));
-}).catch(e => { console.error('DB init failed:', e); process.exit(1); });
+}
+
+boot();
