@@ -5,7 +5,7 @@
 #
 # First run:
 #   cp .env.example .env && nano .env   # fill secrets
-#   mkdir -p /mnt/Luna/BeigeBoard-Data
+#   mkdir -p /mnt/Luna/Backends/BeigeBoard-Data
 #   docker compose up -d --build
 
 services:
@@ -19,7 +19,7 @@ services:
       DB_PATH: /data/beigeBoard.db
       STATIC_DIR: /app/dist
     volumes:
-      - /mnt/Luna/BeigeBoard-Data:/data
+      - /mnt/Luna/Backends/BeigeBoard-Data:/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
