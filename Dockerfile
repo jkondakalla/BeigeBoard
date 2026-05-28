@@ -20,7 +20,7 @@ RUN npm install --omit=dev
 FROM node:20-slim
 WORKDIR /app
 COPY --from=backend-build /app/backend/node_modules ./backend/node_modules
-COPY backend/server.js ./backend/server.js
+COPY backend/server.js backend/jkos-auth.js ./backend/
 COPY backend/package.json ./backend/package.json
 COPY --from=build /app/dist ./dist
 
