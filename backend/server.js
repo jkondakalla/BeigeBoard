@@ -1,7 +1,6 @@
 'use strict';
 const express      = require('express');
 const path         = require('path');
-const crypto       = require('crypto');
 const Database     = require('better-sqlite3');
 const { google }   = require('googleapis');
 const cookieParser = require('cookie-parser');
@@ -453,8 +452,9 @@ async function syncGoogleEvents(auth, userId) {
 
 /* ── Express app ───────────────────────────────────────────────────────── */
 const app = express();
+app.set('trust proxy', 1);
 app.use(cookieParser());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
