@@ -105,8 +105,8 @@ const MIGRATIONS = [
   {
     id: 2, name: 'migrate_legacy_schema',
     up(d) {
-      try { d.exec(`ALTER TABLE items ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`); } catch {}
-      try { d.exec(`ALTER TABLE items ADD COLUMN end_date TEXT`); } catch {}
+      try { d.exec(`ALTER TABLE items ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`); } catch (e) { if (!e.message?.includes('duplicate column')) throw e }
+      try { d.exec(`ALTER TABLE items ADD COLUMN end_date TEXT`); } catch (e) { if (!e.message?.includes('duplicate column')) throw e }
 
       const ct = d.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='calendar_tokens'`).get();
       if (ct && !ct.sql.includes('user_id')) {

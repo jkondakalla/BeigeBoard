@@ -13,7 +13,7 @@ FROM node:20-slim AS backend-build
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/backend
-COPY backend/package.json ./
+COPY backend/package.json backend/package-lock.json* ./
 RUN npm install --omit=dev
 
 # Stage 3: production image
@@ -24,6 +24,7 @@ COPY backend/server.js backend/jkos-auth.js ./backend/
 COPY backend/package.json ./backend/package.json
 COPY --from=build /app/dist ./dist
 
+ENV NODE_ENV=production
 ENV PORT=3001
 ENV DB_PATH=/data/beigeBoard.db
 ENV STATIC_DIR=/app/dist
