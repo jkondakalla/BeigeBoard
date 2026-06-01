@@ -191,6 +191,17 @@ const MIGRATIONS = [
       d.pragma('foreign_keys = ON');
     },
   },
+  {
+    id: 4, name: 'cleanup_and_index',
+    up(d) {
+      // Drop the legacy users table — auth is fully delegated to jkos-auth (runs after migration 3
+      // which has already removed all FK references to this table from items/calendar_tokens)
+      d.exec(`DROP TABLE IF EXISTS users`);
+      // Add missing indexes for per-user data queries
+      d.exec(`CREATE INDEX IF NOT EXISTS idx_items_user           ON items(user_id)`);
+      d.exec(`CREATE INDEX IF NOT EXISTS idx_calendar_tokens_user ON calendar_tokens(user_id)`);
+    },
+  },
 ];
 
 function runMigrations() {
@@ -207,6 +218,21 @@ function runMigrations() {
       console.log(`[migration] applied: ${m.name}`);
     }
   }
+}
+
+/* ── Allowed column names for items table ──────────────────────────────── */
+const ITEM_COLUMNS = new Set([
+  'kind', 'scope', 'title', 'notes', 'parent_id', 'accent', 'source', 'completed',
+  'year', 'month', 'week_start', 'due_date', 'scheduled_time', 'scheduled_end',
+  'end_date', 'location', 'attendees', 'target',
+]);
+
+/* ── Safe JSON for embedding in <script> tags ──────────────────────────── */
+function safeJson(obj) {
+  return JSON.stringify(obj)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\//g, '\\u002f');
 }
 
 /* ── Google OAuth factory ──────────────────────────────────────────────── */
@@ -481,7 +507,7 @@ const authMiddleware = JKOS_AUTH_PUBLIC_KEY
   : (req, _res, next) => { req.user = { sub: 1, role: 'admin' }; next(); }; // dev fallback
 
 app.use((req, res, next) => {
-  if (PUBLIC_PATHS.some(p => req.path === p || req.path.startsWith(p + '/'))) return next();
+  if (PUBLIC_PATHS.some(p => req.path === p)) return next();
   authMiddleware(req, res, next);
 });
 
@@ -517,7 +543,7 @@ app.get('/api/auth/google', (req, res) => {
 app.get('/api/auth/google/callback', async (req, res) => {
   const { code, error } = req.query;
   const close = (msg) => res.send(
-    `<script>window.opener?.postMessage(${JSON.stringify(msg)},window.location.origin);window.close();</script>`
+    `<script>window.opener?.postMessage(${safeJson(msg)},window.location.origin);window.close();</script>`
   );
   if (error) return close({ type: 'google-auth-error', error });
 
@@ -567,7 +593,7 @@ app.get('/api/auth/outlook', (req, res) => {
 app.get('/api/auth/outlook/callback', async (req, res) => {
   const { code, error } = req.query;
   const close = (msg) => res.send(
-    `<script>window.opener?.postMessage(${JSON.stringify(msg)},window.location.origin);window.close();</script>`
+    `<script>window.opener?.postMessage(${safeJson(msg)},window.location.origin);window.close();</script>`
   );
   if (error) return close({ type: 'outlook-auth-error', error });
 
@@ -631,13 +657,16 @@ app.get('/api/items', async (req, res) => {
 
 app.post('/api/items', (req, res) => {
   try {
-    const d = { ...req.body, user_id: req.user.sub };
-    const keys = Object.keys(d).filter(k => k !== 'id');
+    const raw  = req.body;
+    const d    = { user_id: req.user.sub };
+    for (const k of Object.keys(raw)) {
+      if (ITEM_COLUMNS.has(k)) d[k] = typeof raw[k] === 'boolean' ? (raw[k] ? 1 : 0) : raw[k];
+    }
+    const keys = Object.keys(d);
     const cols = keys.join(', ');
     const phs  = keys.map(() => '?').join(', ');
-    const vals = keys.map(k => typeof d[k] === 'boolean' ? (d[k] ? 1 : 0) : d[k]);
-    const r   = run(`INSERT INTO items (${cols}) VALUES (${phs})`, vals);
-    const row = get('SELECT * FROM items WHERE id = ?', [r.lastInsertRowid]);
+    const r    = run(`INSERT INTO items (${cols}) VALUES (${phs})`, keys.map(k => d[k]));
+    const row  = get('SELECT * FROM items WHERE id = ?', [r.lastInsertRowid]);
     res.status(201).json(toRow(row));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -645,9 +674,11 @@ app.post('/api/items', (req, res) => {
 app.patch('/api/items/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const d = req.body;
-    const sets = Object.keys(d).map(k => `${k} = ?`).join(', ');
-    const vals = Object.keys(d).map(k => typeof d[k] === 'boolean' ? (d[k] ? 1 : 0) : d[k]);
+    const raw   = req.body;
+    const valid = Object.keys(raw).filter(k => ITEM_COLUMNS.has(k));
+    if (!valid.length) return res.status(400).json({ error: 'No valid fields to update' });
+    const sets = valid.map(k => `${k} = ?`).join(', ');
+    const vals = valid.map(k => typeof raw[k] === 'boolean' ? (raw[k] ? 1 : 0) : raw[k]);
     run(`UPDATE items SET ${sets} WHERE id = ? AND user_id = ?`, [...vals, id, req.user.sub]);
     const row = get('SELECT * FROM items WHERE id = ? AND user_id = ?', [id, req.user.sub]);
     if (!row) return res.status(404).json({ error: 'Not found' });
@@ -767,6 +798,7 @@ app.post('/api/ai/parse-task', async (req, res) => {
   try {
     const { text, today } = req.body;
     if (!text?.trim()) return res.status(400).json({ error: 'text is required' });
+    const trimmed = text.trim().slice(0, 500);
 
     const todayStr    = today || new Date().toISOString().split('T')[0];
     const d           = new Date(todayStr + 'T12:00:00');
@@ -775,7 +807,7 @@ app.post('/api/ai/parse-task', async (req, res) => {
 
     const prompt = `Parse this task or event description into structured JSON fields.
 
-Description: "${text.trim()}"
+Description: "${trimmed}"
 
 Context:
 - Today is ${dayName} ${todayStr}

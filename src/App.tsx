@@ -80,12 +80,13 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
         const d = await r.json()
         setUser(d.user)
       } else {
-        toAuthPortal()
+        setUser(false)
       }
-    } catch { toAuthPortal() }
+    } catch { setUser(false) }
   }
 
   useEffect(() => { checkAuth() }, [])
+  useEffect(() => { if (user === false) toAuthPortal() }, [user])
 
   const handleUnauth = () => toAuthPortal()
 
@@ -267,10 +268,18 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     return <div style={{ position: 'fixed', inset: 0, background: DARK.paper }} />
   }
 
-  /* Not authenticated — redirect to jkOS auth portal */
+  /* Not authenticated — useEffect fires toAuthPortal(); show redirect message while navigating */
   if (user === false) {
-    toAuthPortal()
-    return <div style={{ position: 'fixed', inset: 0, background: DARK.paper }} />
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, background: DARK.paper,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: DARK.ink3, fontSize: 13, letterSpacing: '0.05em',
+        fontFamily: FONT_BODY,
+      }}>
+        Redirecting to sign in…
+      </div>
+    )
   }
 
   return (

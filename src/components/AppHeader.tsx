@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useT, FONT_HEAD, FONT_BODY, FONT_NUM, localDate, sourceOf } from '../lib/theme'
 import { TapeReel, TimeReadout } from './SharedComponents'
+import { ProfilePopup } from './ProfilePopup'
 
 const NAV_TABS = [
   { id: 'today',    label: 'Today',    sub: 'now' },
@@ -9,11 +10,18 @@ const NAV_TABS = [
   { id: 'tasks',    label: 'Tasks',    sub: 'workshop' },
 ]
 
+function initials(name?: string, email?: string): string {
+  const src = (name || email || '?').trim()
+  const parts = src.split(/[\s@.]+/).filter(Boolean)
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || src[0].toUpperCase()
+}
+
 export function AppHeader({ view, setView, today, onConnectClick, onLogout, accounts, user }: any) {
   const T = useT()
   const d    = localDate(today)
   const week = Math.ceil(((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 86400000) / 7)
   const [scrolled, setScrolled] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const connected = accounts.filter((a: any) => a.connected).length
 
   useEffect(() => {
@@ -84,21 +92,40 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, acco
           </span>
           {connected} sources
         </button>
-        {onLogout && (
+        {user && (
           <>
             <span style={{ width: 1, height: 14, background: T.rule, opacity: 0.6 }} />
-            <button
-              onClick={onLogout}
-              title="Sign out"
-              style={{
-                background: 'transparent', border: 'none',
-                fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.18em',
-                textTransform: 'uppercase', color: T.ink3, cursor: 'pointer',
-                padding: 0,
-              }}
-            >
-              Sign out
-            </button>
+            {/* Profile avatar — opens quick-settings popup */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setProfileOpen(o => !o)}
+                aria-label="Open profile menu"
+                aria-expanded={profileOpen}
+                aria-haspopup="true"
+                title={user.name || user.email}
+                style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: T.yellow,
+                  border: `1.5px solid ${profileOpen ? T.ink2 : T.rule}`,
+                  boxShadow: profileOpen ? `0 0 10px ${T.yellow}66` : 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11, fontWeight: 600,
+                  color: T.paper, cursor: 'pointer',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                }}
+              >
+                {initials(user.name, user.email)}
+              </button>
+
+              {profileOpen && (
+                <ProfilePopup
+                  user={user}
+                  onLogout={onLogout}
+                  onClose={() => setProfileOpen(false)}
+                  T={T}
+                />
+              )}
+            </div>
           </>
         )}
       </div>
