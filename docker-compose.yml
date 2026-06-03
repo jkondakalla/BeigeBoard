@@ -1,3 +1,4 @@
+name: jkos-prod-bb
 services:
   bb-app:
     build: .
