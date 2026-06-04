@@ -15,6 +15,7 @@ const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\
 /* RSA public key from jkos-auth — used by jkosAuth middleware */
 const JKOS_AUTH_PUBLIC_KEY = process.env.JKOS_AUTH_PUBLIC_KEY || '';
 const JKOS_AUTH_URL        = process.env.JKOS_AUTH_URL        || 'https://auth.jkos.net';
+const JKOS_AUTH_ISSUER     = process.env.JKOS_AUTH_ISSUER     || 'jkos-auth';
 
 const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -514,7 +515,7 @@ const PUBLIC_PATHS = [
 ];
 
 const authMiddleware = JKOS_AUTH_PUBLIC_KEY
-  ? jkosAuth({ publicKey: JKOS_AUTH_PUBLIC_KEY })
+  ? jkosAuth({ publicKey: JKOS_AUTH_PUBLIC_KEY, issuer: JKOS_AUTH_ISSUER })
   : (req, _res, next) => { req.user = { sub: 1, role: 'admin' }; next(); }; // dev fallback
 
 app.use((req, res, next) => {
