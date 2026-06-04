@@ -1,23 +1,27 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import './app.css'
 
-import { ThemeCtx, DARK, FONT_HEAD, FONT_BODY, weekStart } from './lib/theme'
+import { FONT_BODY, weekStart } from './lib/theme'
 import { TODAY_ISO, INITIAL_ACCOUNTS } from './lib/seed'
+import { useJkOSPreferences } from './hooks/useJkOSPreferences'
 import { DragProvider } from './providers/DragProvider'
+import { MobileApp } from './mobile'
 
 import { FilmGrain, Halation, Artifacts, ScanLines, CinematicIntro } from './components/Overlays'
 import { AppHeader } from './components/AppHeader'
 import { ConnectModal } from './components/ConnectModal'
 import { DetailPanel } from './components/DetailPanel'
-import {
-  TweaksPanel, useTweaks,
-  TweakSection, TweakToggle, TweakColor, TweakButton,
-} from './components/TweaksPanel'
+import { SettingsPanel } from './components/SettingsPanel'
 
 import { TodayView } from './views/TodayView'
 import { WeekView } from './views/WeekView'
 import { CalendarView } from './views/CalendarView'
 import { TasksView } from './views/TasksView'
+
+// Set dark mode before React hydrates to prevent flash
+if (!document.documentElement.hasAttribute('data-theme')) {
+  document.documentElement.setAttribute('data-theme', 'dark')
+}
 
 const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''
 const JKOS_AUTH_URL    = import.meta.env.VITE_JKOS_AUTH_URL ?? 'https://auth.jkos.net'
@@ -46,28 +50,12 @@ async function apiFetch(input: string, init: RequestInit = {}): Promise<Response
   return fetch(input, opts)
 }
 
-/* ── Tweaks defaults ───────────────────────────────────────────────────── */
-const TWEAK_DEFAULTS = {
-  intro:     false,
-  grain:     true,
-  scanLines: true,
-  artifacts: true,
-  halation:  true,
-  accent:    '#C8391A',
-}
-
-const ACCENT_OPTIONS: Record<string, { redSoft: string; dredSoft: string }> = {
-  '#C8391A': { redSoft: '#E0C0A8', dredSoft: '#3A1108' },
-  '#A87000': { redSoft: '#D8C070', dredSoft: '#241600' },
-  '#B33A55': { redSoft: '#E3BFC4', dredSoft: '#3A0E1A' },
-  '#3A5C78': { redSoft: '#BFCEDB', dredSoft: '#1F3245' },
-}
-const ACCENT_HEXES = Object.keys(ACCENT_OPTIONS)
-
 /* ── Main app ──────────────────────────────────────────────────────────── */
 export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
-  /* user: null = loading, false = not authed, object = authenticated */
   const [user, setUser] = useState<any>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const prefs = useJkOSPreferences()
+  const { effects } = prefs
 
   const toAuthPortal = () => {
     window.location.href = `${JKOS_AUTH_URL}/auth/login?redirect_to=${encodeURIComponent(window.location.href)}`
@@ -125,8 +113,17 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     window.location.href = `${JKOS_AUTH_URL}/auth/login`
   }
 
-  const [intro, setIntro]                 = useState(() => TWEAK_DEFAULTS.intro)
-  const [colorIn, setColorIn]             = useState(() => !TWEAK_DEFAULTS.intro)
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)')
+    const handler = () => setIsMobile(mq.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  const [intro, setIntro]   = useState(false)
+  const [colorIn, setColorIn] = useState(true)
   const [view, setView]                   = useState('today')
   const [items, setItems]                 = useState<any[]>([])
   const [loading, setLoading]             = useState(true)
@@ -137,12 +134,12 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   const [focusedGoalId, setFocusedGoalId] = useState<number | null>(null)
   const [weekJumpDate, setWeekJumpDate]   = useState<string | null>(null)
 
-  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS)
-
   const loadItems = async () => {
     try {
       const data = await api.get('/api/items')
       if (Array.isArray(data)) setItems(data)
+    } catch (e) {
+      console.error('[loadItems]', e)
     } finally { setLoading(false) }
   }
 
@@ -161,17 +158,6 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     })
   }, [user])
 
-  const accentHex    = ACCENT_OPTIONS[tweaks.accent] ? tweaks.accent : ACCENT_HEXES[0]
-  const accentExtras = ACCENT_OPTIONS[accentHex]
-  const T = useMemo(() => ({
-    ...DARK,
-    red:     accentHex,
-    redSoft: accentExtras.dredSoft,
-  }), [accentHex])
-
-  useEffect(() => {
-    if (!tweaks.intro) { setIntro(false); setColorIn(true) }
-  }, [tweaks.intro])
 
   const onToggle = (id: number) => {
     const item = items.find(it => it.id === id)
@@ -179,19 +165,29 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     const next = !item.completed
     setItems(prev => prev.map(it => it.id === id ? { ...it, completed: next } : it))
     setSelected((s: any) => s && s.id === id ? { ...s, completed: next } : s)
-    api.patch(`/api/items/${id}`, { completed: next })
+    api.patch(`/api/items/${id}`, { completed: next }).catch((e: any) => {
+      console.error('[onToggle]', e)
+      // revert optimistic update
+      setItems(prev => prev.map(it => it.id === id ? { ...it, completed: !next } : it))
+      setSelected((s: any) => s && s.id === id ? { ...s, completed: !next } : s)
+    })
   }
 
   const onDelete = (id: number) => {
+    const snapshot = items.find(it => it.id === id)
     setItems(prev => prev.filter(it => it.id !== id))
     setSelected((s: any) => s && s.id === id ? null : s)
-    api.del(`/api/items/${id}`)
+    api.del(`/api/items/${id}`).catch((e: any) => {
+      console.error('[onDelete]', e)
+      if (snapshot) setItems(prev => [...prev, snapshot])
+    })
   }
 
   const onAddItem = async (partial: any) => {
     const fresh = await api.post('/api/items', {
       kind: 'task', scope: 'day', completed: false, source: 'bb', ...partial,
     })
+    if (!fresh?.id) throw new Error('Item creation failed')
     setItems(prev => [...prev, fresh])
     setRecentlyAdded(s => { const n = new Set(s); n.add(fresh.id); return n })
     setTimeout(() => {
@@ -201,9 +197,16 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   }
 
   const onUpdateItem = (id: number, patch: any) => {
+    const prev_vals = items.find(it => it.id === id)
     setItems(prev => prev.map(it => it.id === id ? { ...it, ...patch } : it))
     setSelected((s: any) => s && s.id === id ? { ...s, ...patch } : s)
-    api.patch(`/api/items/${id}`, patch)
+    api.patch(`/api/items/${id}`, patch).catch((e: any) => {
+      console.error('[onUpdateItem]', e)
+      if (prev_vals) {
+        setItems(prev => prev.map(it => it.id === id ? prev_vals : it))
+        setSelected((s: any) => s && s.id === id ? prev_vals : s)
+      }
+    })
   }
 
   const onAddTask = (partial: any) => onAddItem({ kind: 'task', scope: 'day', source: 'bb', ...partial })
@@ -216,20 +219,26 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
   }
 
   const onDisconnect = (id: string) => {
+    const snapshot = accounts.find((a: any) => a.id === id)
     setAccounts(prev => prev.map((a: any) => a.id === id
       ? { ...a, connected: false, visible: false, email: '' }
       : a))
     const routes: Record<string, string> = {
       google: '/api/auth/google', outlook: '/api/auth/outlook', icloud: '/api/auth/icloud',
     }
-    if (routes[id]) api.del(routes[id]).then(loadItems).catch(console.error)
+    if (routes[id]) {
+      api.del(routes[id]).then(loadItems).catch((e: any) => {
+        console.error('[onDisconnect]', e)
+        if (snapshot) setAccounts(prev => prev.map((a: any) => a.id === id ? snapshot : a))
+      })
+    }
   }
 
   const onSync = (id: string) => {
     const routes: Record<string, string> = {
       google: '/api/calendar/google/sync', outlook: '/api/calendar/outlook/sync', icloud: '/api/calendar/icloud/sync',
     }
-    if (routes[id]) api.post(routes[id], {}).then(loadItems).catch(console.error)
+    if (routes[id]) api.post(routes[id], {}).then(loadItems).catch((e: any) => console.error('[onSync]', e))
   }
 
   useEffect(() => {
@@ -263,18 +272,16 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     readonly,
   }
 
-  /* Loading splash */
   if (user === null) {
-    return <div style={{ position: 'fixed', inset: 0, background: DARK.paper }} />
+    return <div style={{ position: 'fixed', inset: 0, background: 'var(--color-paper)' }} />
   }
 
-  /* Not authenticated — useEffect fires toAuthPortal(); show redirect message while navigating */
   if (user === false) {
     return (
       <div style={{
-        position: 'fixed', inset: 0, background: DARK.paper,
+        position: 'fixed', inset: 0, background: 'var(--color-paper)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: DARK.ink3, fontSize: 13, letterSpacing: '0.05em',
+        color: 'var(--color-faint)', fontSize: 13, letterSpacing: '0.05em',
         fontFamily: FONT_BODY,
       }}>
         Redirecting to sign in…
@@ -282,23 +289,39 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
     )
   }
 
+  if (isMobile) {
+    return (
+      <MobileApp
+          items={visibleItems}
+          today={TODAY_ISO}
+          onItemToggle={(id, completed) => {
+            setItems(prev => prev.map(it => it.id === id ? { ...it, completed } : it))
+            setSelected((s: any) => s && s.id === id ? { ...s, completed } : s)
+            api.patch(`/api/items/${id}`, { completed })
+          }}
+          onItemDelete={onDelete}
+          onItemAdd={onAddItem}
+          onItemUpdate={onUpdateItem}
+        />
+    )
+  }
+
   return (
-    <ThemeCtx.Provider value={T}>
     <DragProvider>
-      {intro && tweaks.intro && (
+      {intro && (
         <CinematicIntro onDone={() => { setIntro(false); setColorIn(true) }} />
       )}
 
-      {tweaks.halation && <Halation />}
-      {tweaks.grain     && <FilmGrain />}
-      {tweaks.scanLines && <ScanLines />}
-      {tweaks.artifacts && <Artifacts />}
+      {effects.halation  && <Halation />}
+      {effects.grain     && <FilmGrain strength={effects.grainStrength} />}
+      {effects.scanLines && <ScanLines strength={effects.scanStrength} />}
+      {effects.artifacts && <Artifacts />}
 
       <div style={{
         position: 'fixed', inset: 0,
         filter: colorIn ? 'saturate(1) brightness(1)' : 'saturate(0.04) brightness(0.08)',
         transition: colorIn ? 'filter 1.4s ease-out' : 'none',
-        background: T.paper,
+        background: 'var(--color-paper)',
         display: 'flex', flexDirection: 'column',
       }}>
         <div style={{
@@ -306,9 +329,9 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
           display: 'grid',
           gridTemplateRows: 'auto minmax(0, 1fr)',
           gridTemplateColumns: selected ? '1fr 340px' : '1fr',
-          background: T.paper,
-          color: T.ink,
-          filter: 'url(#halation)',
+          background: 'var(--color-paper)',
+          color: 'var(--color-ink)',
+          filter: effects.halation ? 'url(#halation)' : undefined,
         }}>
           <div style={{ gridColumn: '1 / -1' }}>
             <AppHeader
@@ -317,6 +340,7 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
               accounts={accounts}
               onConnectClick={() => setShowConnect(true)}
               onLogout={handleLogout}
+              onOpenSettings={() => setSettingsOpen(true)}
               user={user}
             />
           </div>
@@ -357,30 +381,13 @@ export default function App({ apiUrl = DEFAULT_API_URL }: { apiUrl?: string }) {
         apiUrl={apiUrl}
       />
 
-      <TweaksPanel>
-        <TweakSection label="Accent">
-          <TweakColor
-            label="Accent color"
-            value={tweaks.accent}
-            options={ACCENT_HEXES}
-            onChange={(v: string) => setTweak('accent', v)}
-          />
-        </TweakSection>
-
-        <TweakSection label="Chrome">
-          <TweakToggle label="Film grain"        value={tweaks.grain}     onChange={(v: boolean) => setTweak('grain', v)} />
-          <TweakToggle label="Scan lines"        value={tweaks.scanLines} onChange={(v: boolean) => setTweak('scanLines', v)} />
-          <TweakToggle label="Random artifacts"  value={tweaks.artifacts} onChange={(v: boolean) => setTweak('artifacts', v)} />
-          <TweakToggle label="Halation glow"     value={tweaks.halation}  onChange={(v: boolean) => setTweak('halation', v)} />
-          <TweakToggle label="CRT intro on load" value={tweaks.intro}     onChange={(v: boolean) => setTweak('intro', v)} />
-        </TweakSection>
-
-        <TweakSection label="Demo">
-          <TweakButton label="Connect a calendar →" onClick={() => setShowConnect(true)} />
-          <TweakButton label="Replay intro →" onClick={() => { setIntro(true); setColorIn(false) }} />
-        </TweakSection>
-      </TweaksPanel>
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        user={user}
+        onLogout={handleLogout}
+        {...prefs}
+      />
     </DragProvider>
-    </ThemeCtx.Provider>
   )
 }

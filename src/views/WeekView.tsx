@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
-  useT, FONT_HEAD, FONT_BODY, FONT_NUM,
+  FONT_HEAD, FONT_BODY, FONT_NUM,
   localDate, isoDate, addDays, weekStart, fmtTime, fmtWeekday, fmtHourLabel, timeToFrac, halate, sourceOf,
 } from '../lib/theme'
 import { useDrag, fracToTime, snapFrac } from '../providers/DragProvider'
@@ -70,7 +70,6 @@ function layoutTimedEvents(events: any[]) {
 }
 
 export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdateItem, selectedId, weekJumpDate, readonly }: any) {
-  const T = useT()
   const { drag, beginDrag } = useDrag()
 
   const [cursor, setCursor] = useState(() => weekStart(today))
@@ -198,49 +197,49 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
 
   return (
     <>
-    <div style={{ flex: 1, overflowY: 'auto', background: T.paper, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--color-paper)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ flex: 1, minHeight: 0, padding: '24px 32px 0', display: 'flex', flexDirection: 'column', maxWidth: 1280, margin: '0 auto', width: '100%' }}>
 
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid ${T.rule}` }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid 'var(--color-line)'` }}>
           <div>
             <Eyebrow style={{ marginBottom: 4 }}>The week</Eyebrow>
-            <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 32, margin: 0, letterSpacing: '-0.025em', lineHeight: 1.04, color: T.ink, whiteSpace: 'nowrap' }}>
-              <em style={{ fontStyle: 'italic', color: T.red, textShadow: halate(T.red, 'mid') }}>{weekRange}</em>
+            <h1 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 32, margin: 0, letterSpacing: '-0.025em', lineHeight: 1.04, color: 'var(--color-ink)', whiteSpace: 'nowrap' }}>
+              <em style={{ fontStyle: 'italic', color: 'var(--color-accent)', textShadow: '0 0 16px var(--color-accent-glow)' }}>{weekRange}</em>
             </h1>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => setCursor(addDays(cursor, -7))} style={navBtn(T)}>‹</button>
-            <button onClick={() => setCursor(weekStart(today))}    style={navBtn(T, true)}>This week</button>
-            <button onClick={() => setCursor(addDays(cursor, 7))}  style={navBtn(T)}>›</button>
+            <button onClick={() => setCursor(addDays(cursor, -7))} style={navBtn()}>‹</button>
+            <button onClick={() => setCursor(weekStart(today))}    style={navBtn(true)}>This week</button>
+            <button onClick={() => setCursor(addDays(cursor, 7))}  style={navBtn()}>›</button>
           </div>
         </div>
 
         <div style={{
           flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
-          background: T.paperDark,
-          border: `1px solid ${T.rule}`,
+          background: 'var(--color-paper-2)',
+          border: `1px solid 'var(--color-line)'`,
           boxShadow: `inset 0 1px 0 rgba(0,0,0,0.06), inset 0 -1px 0 rgba(255,255,255,0.18)`,
           overflow: 'hidden',
         }}>
 
           <div style={{
             display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px repeat(7, minmax(0, 1fr))`,
-            borderBottom: `1px solid ${T.rule}`, background: T.paper,
+            borderBottom: `1px solid 'var(--color-line)'`, background: 'var(--color-paper)',
           }}>
-            <div style={{ borderRight: `1px solid ${T.rule}` }} />
+            <div style={{ borderRight: `1px solid 'var(--color-line)'` }} />
             {days.map((d, i) => {
               const dd = localDate(d)
               const isToday = d === today
               return (
                 <div key={d} style={{
-                  background: isToday ? T.redSoft : 'transparent',
-                  borderRight: i < 6 ? `1px solid ${T.rule}` : 'none',
+                  background: isToday ? 'var(--color-accent-soft)' : 'transparent',
+                  borderRight: i < 6 ? `1px solid 'var(--color-line)'` : 'none',
                   padding: '8px 12px 10px',
                 }}>
-                  <div style={{ fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: isToday ? T.red : T.ink2 }}>
+                  <div style={{ fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: isToday ? 'var(--color-accent)' : 'var(--color-muted)' }}>
                     {dd.toLocaleDateString('en-US', { weekday: 'short' })}
                   </div>
-                  <div style={{ fontFamily: FONT_NUM, fontSize: 22, marginTop: 2, color: isToday ? T.red : T.ink, fontStyle: isToday ? 'italic' : 'normal', fontWeight: isToday ? 500 : 400, letterSpacing: '-0.02em', textShadow: isToday ? halate(T.red, 'mid') : 'none' }}>
+                  <div style={{ fontFamily: FONT_NUM, fontSize: 22, marginTop: 2, color: isToday ? 'var(--color-accent)' : 'var(--color-ink)', fontStyle: isToday ? 'italic' : 'normal', fontWeight: isToday ? 500 : 400, letterSpacing: '-0.02em', textShadow: isToday ? '0 0 16px var(--color-accent-glow)' : 'none' }}>
                     {dd.getDate()}
                   </div>
                 </div>
@@ -251,12 +250,12 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
           {(alldayLanes > 0 || (anyDrag && drag?.mode === 'allday')) && (
             <div style={{
               display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px 1fr`,
-              borderBottom: `1px solid ${T.rule}`, background: T.paper, flexShrink: 0,
+              borderBottom: `1px solid 'var(--color-line)'`, background: 'var(--color-paper)', flexShrink: 0,
             }}>
               <div style={{
-                borderRight: `1px solid ${T.rule}`,
+                borderRight: `1px solid 'var(--color-line)'`,
                 fontFamily: FONT_BODY, fontSize: 8, letterSpacing: '0.18em',
-                textTransform: 'uppercase', color: T.ink3,
+                textTransform: 'uppercase', color: 'var(--color-faint)',
                 padding: '5px 5px 0 0', textAlign: 'right',
               }}>all‑day</div>
               <div style={{ position: 'relative', height: Math.max(alldayLanes, 1) * 22 + 8, overflow: 'hidden' }}>
@@ -271,9 +270,9 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                         data-drop-day={d}
                         onClick={(!anyDrag && !readonly) ? () => setCreatePending({ startDay: d, allDay: true, scheduled_time: null, scheduled_end: null }) : undefined}
                         style={{
-                          borderRight: i < 6 ? `1px solid ${T.rule}` : 'none',
-                          background: isOver ? `${T.red}22` : d === today ? `${T.redSoft}22` : 'transparent',
-                          outline: isOver ? `1px dashed ${T.red}` : isTarget ? `1px dashed ${T.red}33` : 'none',
+                          borderRight: i < 6 ? `1px solid 'var(--color-line)'` : 'none',
+                          background: isOver ? `var(--color-accent)22` : d === today ? `var(--color-accent-soft)22` : 'transparent',
+                          outline: isOver ? `1px dashed 'var(--color-accent)'` : isTarget ? `1px dashed var(--color-accent-glow)` : 'none',
                           outlineOffset: -2,
                           cursor: anyDrag ? 'copy' : 'pointer',
                           transition: 'background 0.08s',
@@ -306,7 +305,7 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                         paddingRight: bar.continuesRight ? 0 : 6,
                         cursor: 'grab', overflow: 'hidden',
                         opacity: isDraggingThis ? 0.35 : 1,
-                        outline: selectedId === bar.ev.id ? `2px solid ${T.yellow}` : 'none',
+                        outline: selectedId === bar.ev.id ? `2px solid 'var(--color-accent)'` : 'none',
                         outlineOffset: -2,
                         userSelect: 'none',
                         transition: 'opacity 0.1s',
@@ -324,12 +323,12 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
 
           <div style={{
             display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px repeat(7, minmax(0, 1fr))`,
-            borderBottom: `1px solid ${T.rule}`, background: T.paper, minHeight: 56,
+            borderBottom: `1px solid 'var(--color-line)'`, background: 'var(--color-paper)', minHeight: 56,
           }}>
             <div style={{
-              borderRight: `1px solid ${T.rule}`,
+              borderRight: `1px solid 'var(--color-line)'`,
               fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.18em',
-              textTransform: 'uppercase', color: T.ink3,
+              textTransform: 'uppercase', color: 'var(--color-faint)',
               padding: '6px 6px 0 0', textAlign: 'right',
             }}>untimed</div>
             {days.map((d, i) => {
@@ -342,9 +341,9 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                   data-drop-zone="untimed"
                   data-drop-day={d}
                   style={{
-                    borderRight: i < 6 ? `1px solid ${T.rule}` : 'none',
-                    background: isOver ? `${T.red}18` : d === today ? `${T.redSoft}44` : 'transparent',
-                    outline: isOver ? `1px dashed ${T.red}` : isTarget ? `1px dashed ${T.red}33` : 'none',
+                    borderRight: i < 6 ? `1px solid 'var(--color-line)'` : 'none',
+                    background: isOver ? `var(--color-accent)18` : d === today ? `var(--color-accent-soft)44` : 'transparent',
+                    outline: isOver ? `1px dashed 'var(--color-accent)'` : isTarget ? `1px dashed var(--color-accent-glow)` : 'none',
                     outlineOffset: -2,
                     padding: 4,
                     display: 'flex', flexDirection: 'column', gap: 3,
@@ -374,11 +373,11 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
               display: 'grid', gridTemplateColumns: `${WV_LABEL_W}px repeat(7, minmax(0, 1fr))`,
               height: totalH, position: 'relative',
             }}>
-              <div style={{ position: 'relative', borderRight: `1px solid ${T.rule}`, background: T.paper }}>
+              <div style={{ position: 'relative', borderRight: `1px solid 'var(--color-line)'`, background: 'var(--color-paper)' }}>
                 {HOURS.map((h, i) => (
                   <div key={h} style={{
                     position: 'absolute', top: i * WV_ROW_H, left: 0, right: 0, height: WV_ROW_H,
-                    fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 10.5, color: T.ink2,
+                    fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 10.5, color: 'var(--color-muted)',
                     textAlign: 'right', padding: '3px 6px 0 0',
                   }}>{i === 0 ? '' : fmtHourLabel(h)}</div>
                 ))}
@@ -403,17 +402,16 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                     data-frac-scale={WV_ROW_H}
                     onMouseDown={(e: any) => {
                       if (e.target !== e.currentTarget && !(e.target as HTMLElement).dataset?.gridBg) return
+                      // getBoundingClientRect() already accounts for the container's scroll
                       const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                      const scroll = scrollRef.current?.scrollTop || 0
-                      const y = e.clientY - r.top + scroll
-                      const frac = snapFrac(WV_FIRST_H + y / WV_ROW_H)
+                      const frac = snapFrac(WV_FIRST_H + (e.clientY - r.top) / WV_ROW_H)
                       beginCreate(e, d, frac)
                     }}
                     style={{
                       position: 'relative',
-                      borderRight: i < 6 ? `1px solid ${T.rule}` : 'none',
-                      background: isOver ? `${T.red}0C` : isToday ? `${T.redSoft}44` : T.paper,
-                      outline: isTarget && !isToday ? `1px solid ${T.red}18` : 'none',
+                      borderRight: i < 6 ? `1px solid var(--color-line)` : 'none',
+                      background: isOver ? `var(--color-accent)0C` : isToday ? `var(--color-accent-soft)44` : 'var(--color-paper)',
+                      outline: isTarget && !isToday ? `1px solid var(--color-accent)18` : 'none',
                       outlineOffset: -1,
                       cursor: anyDrag ? 'copy' : 'crosshair',
                       transition: 'background 0.08s',
@@ -422,12 +420,12 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                     {HOURS.map((h, idx) => (
                       <div key={h} data-grid-bg style={{
                         position: 'absolute', left: 0, right: 0, top: idx * WV_ROW_H, height: WV_ROW_H,
-                        borderBottom: idx < HOURS.length - 1 ? `1px solid ${T.ruleSoft}` : 'none',
+                        borderBottom: idx < HOURS.length - 1 ? `1px solid var(--color-line-strong)` : 'none',
                         pointerEvents: 'none',
                       }}>
                         <div data-grid-bg style={{
                           position: 'absolute', left: 0, right: 0, top: WV_ROW_H / 2,
-                          borderTop: `1px dotted ${T.ruleSoft}`, opacity: 0.4,
+                          borderTop: `1px dotted var(--color-line-strong)`, opacity: 0.4,
                         }} />
                       </div>
                     ))}
@@ -461,21 +459,21 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
                     {isToday && nowFrac >= WV_FIRST_H && nowFrac <= WV_LAST_H + 1 && (
                       <div style={{
                         position: 'absolute', top: (nowFrac - WV_FIRST_H) * WV_ROW_H,
-                        left: 0, right: 0, height: 1, background: T.red, zIndex: 12, pointerEvents: 'none',
-                        boxShadow: `0 0 8px ${T.red}99, 0 0 14px ${T.red}44`,
+                        left: 0, right: 0, height: 1, background: 'var(--color-accent)', zIndex: 12, pointerEvents: 'none',
+                        boxShadow: `0 0 8px var(--color-accent)99, 0 0 14px var(--color-accent)44`,
                       }}>
                         <span className="now-dot" style={{
                           position: 'absolute', left: -4, top: -3,
-                          width: 8, height: 8, borderRadius: '50%', background: T.red,
-                          boxShadow: `0 0 8px ${T.red}cc, 0 0 14px ${T.red}66`,
+                          width: 8, height: 8, borderRadius: '50%', background: 'var(--color-accent)',
+                          boxShadow: `0 0 8px var(--color-accent)cc, 0 0 14px var(--color-accent)66`,
                         }} />
                         <span style={{
                           position: 'absolute', right: 6, top: -8,
                           fontFamily: FONT_BODY, fontSize: 8, letterSpacing: '0.22em',
-                          textTransform: 'uppercase', color: T.red,
-                          background: T.paper, padding: '1px 5px',
-                          textShadow: halate(T.red, 'mid'),
-                          border: `1px solid ${T.red}`,
+                          textTransform: 'uppercase', color: 'var(--color-accent)',
+                          background: 'var(--color-paper)', padding: '1px 5px',
+                          textShadow: '0 0 16px var(--color-accent-glow)',
+                          border: `1px solid var(--color-accent)`,
                         }}>● rec</span>
                       </div>
                     )}
@@ -513,7 +511,6 @@ export function WeekView({ items, today, onSelect, onToggle, onAddItem, onUpdate
 }
 
 function TimelinePreview({ drag }: any) {
-  const T = useT()
   const { mode, startFrac, overFrac, item } = drag
   if (overFrac == null) return null
 
@@ -522,7 +519,7 @@ function TimelinePreview({ drag }: any) {
   if (mode === 'create') {
     start = Math.min(startFrac ?? overFrac, overFrac)
     end   = Math.max((startFrac ?? overFrac) + 0.5, overFrac)
-    color = T.yellow
+    color = 'var(--color-accent)'
     label = `${fmtTime(fracToTime(start))} – ${fmtTime(fracToTime(end))}`
   } else if (mode === 'timed' && item) {
     const baseStart = timeToFrac(item.scheduled_time)
@@ -530,12 +527,12 @@ function TimelinePreview({ drag }: any) {
     const dur = baseEnd - baseStart
     start = overFrac
     end   = overFrac + dur
-    color = item.accent || (item.source ? sourceOf(item.source)?.hex : null) || T.red
+    color = item.accent || (item.source ? sourceOf(item.source)?.hex : null) || 'var(--color-accent)'
     label = item.title
   } else {
     start = overFrac
     end   = overFrac + 1
-    color = T.red
+    color = 'var(--color-accent)'
     label = `${fmtTime(fracToTime(start))} – ${fmtTime(fracToTime(end))}`
   }
 
@@ -557,7 +554,7 @@ function TimelinePreview({ drag }: any) {
         fontStyle: mode === 'timed' ? 'normal' : 'italic',
         fontWeight: mode === 'timed' ? 500 : 400,
         fontSize: 11,
-        color: mode === 'timed' ? 'rgba(255,255,255,0.9)' : (mode === 'create' ? T.paper : T.ink),
+        color: mode === 'timed' ? 'rgba(255,255,255,0.9)' : (mode === 'create' ? 'var(--color-paper)' : 'var(--color-ink)'),
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>{label}</div>
       {mode === 'timed' && height >= 36 && (
@@ -572,7 +569,6 @@ function TimelinePreview({ drag }: any) {
 }
 
 function CreateDialog({ pending, onSubmit, onCancel }: any) {
-  const T = useT()
   const [title, setTitle] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { inputRef.current?.focus() }, [])
@@ -587,12 +583,12 @@ function CreateDialog({ pending, onSubmit, onCancel }: any) {
       backdropFilter: 'blur(2px)',
     }}>
       <div onClick={(e: any) => e.stopPropagation()} className="modal-in" style={{
-        width: 'min(460px, 90vw)', background: T.paperDark,
-        border: `1px solid ${T.rule}`,
-        boxShadow: `0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px ${T.red}22`,
+        width: 'min(460px, 90vw)', background: 'var(--color-paper-2)',
+        border: `1px solid var(--color-line)`,
+        boxShadow: `0 24px 64px rgba(0,0,0,0.5), 0 0 0 1px var(--color-accent)22`,
         padding: '22px 26px 24px',
       }}>
-        <div style={{ fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.red, marginBottom: 10 }}>
+        <div style={{ fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--color-accent)', marginBottom: 10 }}>
           {pending.allDay
             ? `${fmtWeekday(pending.startDay)} · all‑day event`
             : `${fmtWeekday(pending.startDay)} · ${fmtTime(pending.scheduled_time)} – ${fmtTime(pending.scheduled_end)}`}
@@ -603,14 +599,14 @@ function CreateDialog({ pending, onSubmit, onCancel }: any) {
           placeholder="What needs to happen…"
           style={{
             width: '100%', background: 'transparent', border: 'none',
-            borderBottom: `1px solid ${T.rule}`,
+            borderBottom: `1px solid var(--color-line)`,
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 22,
-            color: T.ink, outline: 'none', padding: '4px 0 10px',
+            color: 'var(--color-ink)', outline: 'none', padding: '4px 0 10px',
           }}
         />
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{ background: 'transparent', border: `1px solid ${T.rule}`, fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.ink2, padding: '8px 16px', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={handle} className="btn-action" style={{ background: T.red, border: 'none', color: T.paper, fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '8px 20px', cursor: 'pointer', boxShadow: `0 0 12px ${T.red}55` }}>Add →</button>
+          <button onClick={onCancel} style={{ background: 'transparent', border: `1px solid var(--color-line)`, fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-muted)', padding: '8px 16px', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={handle} className="btn-action" style={{ background: 'var(--color-accent)', border: 'none', color: 'var(--color-paper)', fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '8px 20px', cursor: 'pointer', boxShadow: `0 0 12px var(--color-accent)55` }}>Add →</button>
         </div>
       </div>
     </div>
@@ -618,8 +614,7 @@ function CreateDialog({ pending, onSubmit, onCancel }: any) {
 }
 
 function UntimedChip({ item, isSelected, isDragging, onSelect, onToggle, onMouseDown }: any) {
-  const T = useT()
-  const accent = item.accent || T.ink2
+  const accent = item.accent || 'var(--color-muted)'
 
   if (isDragging) {
     return (
@@ -638,12 +633,12 @@ function UntimedChip({ item, isSelected, isDragging, onSelect, onToggle, onMouse
       style={{
         display: 'flex', alignItems: 'center', gap: 6,
         padding: '2px 6px 2px 5px',
-        background: item.completed ? T.paper : `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${accent}`,
+        background: item.completed ? 'var(--color-paper)' : `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${accent}`,
         boxShadow: item.completed ? 'none' : `inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 4px rgba(0,0,0,0.3)`,
-        color: item.completed ? T.ink2 : 'rgba(255,255,255,0.95)',
+        color: item.completed ? 'var(--color-muted)' : 'rgba(255,255,255,0.95)',
         fontFamily: FONT_BODY, fontSize: 10.5,
         cursor: 'grab',
-        outline: isSelected ? `1.5px solid ${T.yellow}` : 'none',
+        outline: isSelected ? `1.5px solid var(--color-accent)` : 'none',
         outlineOffset: -1,
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         textDecoration: item.completed ? 'line-through' : 'none',
@@ -655,10 +650,10 @@ function UntimedChip({ item, isSelected, isDragging, onSelect, onToggle, onMouse
         onClick={(e: any) => { e.stopPropagation(); onToggle(item.id, item.completed) }}
         style={{
           width: 9, height: 9, flexShrink: 0,
-          border: `1px solid ${item.completed ? T.ink2 : 'rgba(255,255,255,0.7)'}`,
-          background: item.completed ? T.ink2 : 'transparent',
+          border: `1px solid ${item.completed ? 'var(--color-muted)' : 'rgba(255,255,255,0.7)'}`,
+          background: item.completed ? 'var(--color-muted)' : 'transparent',
           cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 6, color: T.paper, lineHeight: 1,
+          fontSize: 6, color: 'var(--color-paper)', lineHeight: 1,
         }}
       >{item.completed ? '✓' : ''}</span>
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</span>
@@ -667,9 +662,8 @@ function UntimedChip({ item, isSelected, isDragging, onSelect, onToggle, onMouse
 }
 
 function TimeBlock({ item, isSelected, isDragging, isResizing, liveOverride, slot = 0, totalCols = 1, onSelect, onToggle, onBeginDrag, onBeginResize }: any) {
-  const T = useT()
   const isEvent = item.kind === 'event'
-  const accent = item.accent || (isEvent && sourceOf(item.source).hex) || T.red
+  const accent = item.accent || (isEvent && sourceOf(item.source).hex) || 'var(--color-accent)'
 
   const baseStart = timeToFrac(item.scheduled_time)
   const baseEnd   = item.scheduled_end ? timeToFrac(item.scheduled_end) : baseStart + 1
@@ -703,10 +697,10 @@ function TimeBlock({ item, isSelected, isDragging, isResizing, liveOverride, slo
         top, height,
         background: `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${accent}`,
         borderTop: `2px solid rgba(255,255,255,0.28)`,
-        outline: isSelected ? `2px solid ${T.yellow}` : 'none',
+        outline: isSelected ? `2px solid var(--color-accent)` : 'none',
         outlineOffset: -2,
         boxShadow: isSelected
-          ? `inset 0 1px 0 rgba(255,255,255,0.22), 0 3px 10px rgba(0,0,0,0.4), 0 0 0 1px ${T.paper}, 0 0 0 3px ${T.yellow}`
+          ? `inset 0 1px 0 rgba(255,255,255,0.22), 0 3px 10px rgba(0,0,0,0.4), 0 0 0 1px var(--color-paper), 0 0 0 3px var(--color-accent)`
           : `inset 0 1px 0 rgba(255,255,255,0.22), 0 3px 10px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.25)`,
         overflow: 'hidden', cursor: 'grab',
         opacity: item.completed ? 0.55 : 1,
@@ -754,16 +748,16 @@ function TimeBlock({ item, isSelected, isDragging, isResizing, liveOverride, slo
   )
 }
 
-function navBtn(T: any, primary?: boolean) {
+function navBtn(primary?: boolean) {
   return {
-    background: primary ? T.paperDark : 'transparent',
-    border: `1px solid ${T.rule}`,
+    background: primary ? 'var(--color-paper-2)' : 'transparent',
+    border: `1px solid var(--color-line)`,
     fontFamily: FONT_BODY,
     fontSize: primary ? 10 : 14,
     letterSpacing: primary ? '0.16em' : '0',
     textTransform: primary ? 'uppercase' as const : 'none' as const,
     padding: primary ? '6px 14px' : '5px 12px',
-    color: T.ink, cursor: 'pointer',
+    color: 'var(--color-ink)', cursor: 'pointer',
     boxShadow: `inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.05)`,
   }
 }

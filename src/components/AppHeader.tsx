@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { useT, FONT_HEAD, FONT_BODY, FONT_NUM, localDate, sourceOf } from '../lib/theme'
-import { TapeReel, TimeReadout } from './SharedComponents'
-import { ProfilePopup } from './ProfilePopup'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, sourceOf } from '../lib/theme'
+import { TimeReadout } from './SharedComponents'
 
 const NAV_TABS = [
   { id: 'today',    label: 'Today',    sub: 'now' },
@@ -16,12 +15,10 @@ function initials(name?: string, email?: string): string {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || src[0].toUpperCase()
 }
 
-export function AppHeader({ view, setView, today, onConnectClick, onLogout, accounts, user }: any) {
-  const T = useT()
+export function AppHeader({ view, setView, today, onConnectClick, onLogout, onOpenSettings, accounts, user }: any) {
   const d    = localDate(today)
   const week = Math.ceil(((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 86400000) / 7)
   const [scrolled, setScrolled] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
   const connected = accounts.filter((a: any) => a.connected).length
 
   useEffect(() => {
@@ -32,167 +29,126 @@ export function AppHeader({ view, setView, today, onConnectClick, onLogout, acco
 
   return (
     <header style={{
-      background: T.paper,
-      borderBottom: `1px solid ${T.rule}`,
-      padding: '14px 32px 14px',
+      background: 'var(--color-paper)',
+      borderBottom: '1px solid var(--color-line)',
+      padding: '0 28px',
+      height: 56,
       flexShrink: 0,
-      boxShadow: scrolled ? `0 2px 24px rgba(0,0,0,0.5)` : 'none',
+      boxShadow: scrolled ? '0 2px 24px rgba(0,0,0,0.4)' : 'none',
       transition: 'box-shadow 0.25s',
       zIndex: 100,
       display: 'grid',
       gridTemplateColumns: '1fr auto 1fr',
-      gridTemplateRows: 'auto',
-      gap: 18,
       alignItems: 'center',
+      gap: 20,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-        <TapeReel size={28} color={T.yellow} spinning />
+      {/* Left: wordmark + date badge */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         <span style={{
           fontFamily: FONT_HEAD, fontWeight: 600, fontStyle: 'italic',
-          fontSize: 22, color: T.yellow, letterSpacing: '-0.01em',
-          textShadow: `0 0 16px ${T.yellow}44`,
-          whiteSpace: 'nowrap', flexShrink: 0,
+          fontSize: 20, color: 'var(--color-accent)',
+          letterSpacing: '-0.01em', whiteSpace: 'nowrap', flexShrink: 0,
+          textShadow: '0 0 12px var(--color-accent-glow)',
         }}>BeigeBoard</span>
-        <TapeCounter year={d.getFullYear()} week={week} />
+
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '3px 10px',
+          background: 'var(--color-card)',
+          border: '1px solid var(--color-line)',
+          borderRadius: 2,
+          fontFamily: FONT_NUM, fontSize: 11,
+          color: 'var(--color-muted)',
+          letterSpacing: '0.06em',
+          whiteSpace: 'nowrap',
+        }}>
+          <span style={{ color: 'var(--color-accent)', fontStyle: 'italic' }}>
+            W{String(week).padStart(2, '0')}
+          </span>
+          <span style={{ opacity: 0.4 }}>·</span>
+          {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </span>
       </div>
 
-      <TapeDeck view={view} setView={setView} />
+      {/* Center: clean nav tabs */}
+      <nav role="tablist" aria-label="Primary" style={{ display: 'flex', gap: 2 }}>
+        {NAV_TABS.map(tab => (
+          <NavTab key={tab.id} tab={tab} active={view === tab.id} onClick={() => setView(tab.id)} />
+        ))}
+      </nav>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 14 }}>
+      {/* Right: sources, time, profile */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12 }}>
         {user?.role === 'guest' && (
           <span style={{
             fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.22em',
-            textTransform: 'uppercase', color: T.ink3,
-            border: `1px solid ${T.rule}`,
-            padding: '3px 8px',
-            opacity: 0.7,
+            textTransform: 'uppercase', color: 'var(--color-faint)',
+            border: '1px solid var(--color-line)', padding: '3px 8px',
           }}>Guest</span>
         )}
-        <TimeReadout />
-        <span style={{ width: 1, height: 14, background: T.rule, opacity: 0.6 }} />
+
         <button
           onClick={onConnectClick}
           title="Manage connected calendars"
           style={{
             background: 'transparent', border: 'none',
-            fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.18em',
-            textTransform: 'uppercase', color: T.ink2, cursor: 'pointer',
-            padding: 0, display: 'flex', alignItems: 'center', gap: 8,
+            fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.16em',
+            textTransform: 'uppercase', color: 'var(--color-muted)', cursor: 'pointer',
+            padding: 0, display: 'flex', alignItems: 'center', gap: 7,
           }}
         >
           <span style={{ display: 'inline-flex', gap: 3 }}>
             {accounts.slice(0, 4).map((a: any) => (
               <span key={a.id} style={{
-                width: 7, height: 7, borderRadius: '50%',
-                background: a.connected ? sourceOf(a.id).hex : T.ruleSoft,
-                opacity: a.connected ? 0.95 : 0.3,
+                width: 6, height: 6, borderRadius: '50%',
+                background: a.connected ? sourceOf(a.id).hex : 'var(--color-line-strong)',
+                opacity: a.connected ? 0.9 : 0.3,
                 boxShadow: a.connected ? `0 0 4px ${sourceOf(a.id).hex}80` : 'none',
               }} />
             ))}
           </span>
-          {connected} sources
+          {connected > 0 ? `${connected} sources` : 'connect'}
         </button>
-        {user && (
-          <>
-            <span style={{ width: 1, height: 14, background: T.rule, opacity: 0.6 }} />
-            {/* Profile avatar — opens quick-settings popup */}
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => setProfileOpen(o => !o)}
-                aria-label="Open profile menu"
-                aria-expanded={profileOpen}
-                aria-haspopup="true"
-                title={user.name || user.email}
-                style={{
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: T.yellow,
-                  border: `1.5px solid ${profileOpen ? T.ink2 : T.rule}`,
-                  boxShadow: profileOpen ? `0 0 10px ${T.yellow}66` : 'none',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11, fontWeight: 600,
-                  color: T.paper, cursor: 'pointer',
-                  transition: 'border-color 0.15s, box-shadow 0.15s',
-                }}
-              >
-                {initials(user.name, user.email)}
-              </button>
 
-              {profileOpen && (
-                <ProfilePopup
-                  user={user}
-                  onLogout={onLogout}
-                  onClose={() => setProfileOpen(false)}
-                  T={T}
-                />
-              )}
-            </div>
-          </>
+        <span style={{ width: 1, height: 14, background: 'var(--color-line)' }} />
+        <TimeReadout />
+        <span style={{ width: 1, height: 14, background: 'var(--color-line)' }} />
+
+        {user && (
+          <button
+            onClick={onOpenSettings}
+            aria-label="Open settings"
+            title={user.name || user.email}
+            style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: 'var(--color-accent-deep)',
+              border: '1.5px solid var(--color-line-strong)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11, fontWeight: 600,
+              color: 'var(--color-accent-bright)', cursor: 'pointer',
+              transition: 'border-color 0.15s, box-shadow 0.15s',
+              boxShadow: 'none',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.boxShadow = '0 0 8px var(--color-accent-glow)'
+              ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--color-accent)'
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.boxShadow = 'none'
+              ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--color-line-strong)'
+            }}
+          >
+            {initials(user.name, user.email)}
+          </button>
         )}
       </div>
     </header>
   )
 }
 
-function TapeCounter({ year, week }: { year: number; week: number }) {
-  const T = useT()
-  return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', gap: 8,
-      padding: '4px 12px',
-      background: 'rgba(0,0,0,0.45)',
-      border: `1px solid ${T.rule}`,
-      boxShadow: `inset 0 2px 4px rgba(0,0,0,0.5), inset 0 -1px 0 rgba(255,255,255,0.05), 0 1px 0 rgba(255,255,255,0.06)`,
-    }}>
-      <span style={{
-        fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: T.ink2,
-        letterSpacing: '0.04em',
-      }}>{year}</span>
-      <span style={{ width: 1, height: 12, background: T.rule, opacity: 0.6 }} />
-      <span style={{
-        fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: T.yellow,
-        letterSpacing: '0.04em',
-        textShadow: `0 0 10px ${T.yellow}99`,
-      }}>W{String(week).padStart(2, '0')}</span>
-    </div>
-  )
-}
-
-function TapeDeck({ view, setView }: any) {
-  const T = useT()
-  return (
-    <nav
-      role="tablist"
-      aria-label="Primary"
-      style={{
-        display: 'flex', gap: 0,
-        background: 'rgba(0,0,0,0.55)',
-        border: `1px solid ${T.rule}`,
-        padding: 3,
-        boxShadow: `inset 0 2px 4px rgba(0,0,0,0.35), inset 0 -1px 0 rgba(255,255,255,0.06), 0 1px 0 rgba(255,255,255,0.06)`,
-      }}
-    >
-      {NAV_TABS.map(tab => (
-        <TapeButton
-          key={tab.id}
-          tab={tab}
-          active={view === tab.id}
-          onClick={() => setView(tab.id)}
-        />
-      ))}
-    </nav>
-  )
-}
-
-function TapeButton({ tab, active, onClick }: any) {
-  const T = useT()
+function NavTab({ tab, active, onClick }: any) {
   const [hover, setHover] = useState(false)
-
-  const face = active ? '#1F1810' : '#15110A'
-  const labelColor = active ? T.ink : T.ink2
-  const labelShadow = active ? `0 0 14px ${T.red}66` : 'none'
-  const press = active
-    ? `inset 0 2px 4px rgba(0,0,0,0.45), inset 0 -1px 0 rgba(255,255,255,0.04)`
-    : `inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -2px 2px rgba(0,0,0,0.18), 0 1px 0 rgba(0,0,0,0.18)`
+  const isLit = active || hover
 
   return (
     <button
@@ -202,39 +158,25 @@ function TapeButton({ tab, active, onClick }: any) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        position: 'relative',
-        background: face,
+        background: active ? 'var(--color-accent-soft)' : (hover ? 'var(--color-card)' : 'transparent'),
         border: 'none',
-        borderRight: `1px solid ${T.rule}80`,
-        padding: '10px 22px 10px 28px',
-        minWidth: 120,
+        borderBottom: `2px solid ${active ? 'var(--color-accent)' : 'transparent'}`,
+        padding: '8px 18px',
         cursor: 'pointer',
-        textAlign: 'left',
-        boxShadow: press,
-        transition: 'background 0.12s',
+        transition: 'background 0.12s, border-color 0.12s',
       }}
     >
-      <span style={{
-        position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-        width: 7, height: 7, borderRadius: '50%',
-        background: active ? T.red : '#0A0806',
-        boxShadow: active
-          ? `0 0 8px ${T.red}cc, 0 0 14px ${T.red}55, inset 0 -1px 0 rgba(255,255,255,0.25)`
-          : `inset 0 1px 1px rgba(0,0,0,0.4)`,
-        transition: 'background 0.15s, box-shadow 0.15s',
-      }} />
-
       <div style={{
         fontFamily: FONT_BODY, fontSize: 11, fontWeight: 500,
-        letterSpacing: '0.22em', textTransform: 'uppercase',
-        color: labelColor, lineHeight: 1.1,
-        textShadow: labelShadow,
-        transition: 'color 0.15s, text-shadow 0.15s',
+        letterSpacing: '0.18em', textTransform: 'uppercase',
+        color: active ? 'var(--color-accent)' : (hover ? 'var(--color-ink)' : 'var(--color-muted)'),
+        lineHeight: 1.1,
+        transition: 'color 0.12s',
       }}>{tab.label}</div>
       <div style={{
-        fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 10.5,
-        color: T.ink3, marginTop: 2, lineHeight: 1,
-        opacity: active ? 0.85 : 0.55,
+        fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 10,
+        color: 'var(--color-faint)', marginTop: 2, lineHeight: 1,
+        opacity: isLit ? 0.85 : 0.5,
       }}>{tab.sub}</div>
     </button>
   )

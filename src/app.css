@@ -82,6 +82,75 @@ button:focus, input:focus, select:focus { outline: none; }
 .now-dot      { animation: pulseOpacity 1.8s ease-in-out infinite; }
 .check-pop    { animation: checkBounce 0.25s ease-out; }
 
+/* ── Design token system (data-theme) ───────────────────────────────── */
+
+/* BeigeBoard dark — warm amber retro, the original BB identity */
+:root[data-theme="dark"] {
+  --accent-base:      #ffb000;
+  --accent-secondary: #4ecdc4;
+  --color-paper:      #0f0c06;
+  --color-paper-2:    #150f08;
+  --color-card:       #1a1208;
+  --color-card-2:     #211809;
+  --color-ink:        #f2e8d2;
+  --color-muted:      #a89272;
+  --color-faint:      #6e5c3e;
+  --color-line:       #3b2c18;
+  --color-line-strong:#4f3d22;
+  --color-accent:        var(--accent-base);
+  --color-accent-bright: color-mix(in srgb, var(--accent-base) 65%, #fff);
+  --color-accent-dim:    color-mix(in srgb, var(--accent-base) 50%, #000);
+  --color-accent-deep:   color-mix(in srgb, var(--accent-base) 22%, #000);
+  --color-accent-glow:   color-mix(in srgb, var(--accent-base) 38%, transparent);
+  --color-accent-soft:   color-mix(in srgb, var(--accent-base) 10%, var(--color-card));
+  --color-accent-ink:    color-mix(in srgb, var(--accent-base) 65%, #fff);
+  --color-accent-contrast: #000;
+  --color-secondary:      var(--accent-secondary);
+  --color-secondary-dim:  color-mix(in srgb, var(--accent-secondary) 50%, #000);
+  --color-secondary-glow: color-mix(in srgb, var(--accent-secondary) 38%, transparent);
+  --color-ok:     #34d399;
+  --color-warn:   #fbbf24;
+  --color-danger: #f87171;
+  --grain-opacity: 0.08;
+  --grain-blend:   screen;
+}
+
+/* BeigeBoard light — warm parchment paper, BB's reading identity */
+:root[data-theme="light"] {
+  --accent-base:      #c8391a;
+  --accent-secondary: #3a5c78;
+  --color-paper:      #ede2c8;
+  --color-paper-2:    #e4d5b0;
+  --color-card:       #f5ead4;
+  --color-card-2:     #ead9bb;
+  --color-ink:        #1c1408;
+  --color-muted:      #6b5038;
+  --color-faint:      #9c8060;
+  --color-line:       #c8ae88;
+  --color-line-strong:#b09a72;
+  --color-accent:        color-mix(in srgb, var(--accent-base) 85%, #000);
+  --color-accent-bright: var(--accent-base);
+  --color-accent-dim:    color-mix(in srgb, var(--accent-base) 65%, #000);
+  --color-accent-deep:   color-mix(in srgb, var(--accent-base) 38%, #000);
+  --color-accent-glow:   color-mix(in srgb, var(--accent-base) 20%, transparent);
+  --color-accent-soft:   color-mix(in srgb, var(--accent-base) 10%, var(--color-card));
+  --color-accent-ink:    color-mix(in srgb, var(--accent-base) 80%, #000);
+  --color-accent-contrast: #fff;
+  --color-secondary:      var(--accent-secondary);
+  --color-secondary-dim:  color-mix(in srgb, var(--accent-secondary) 70%, #000);
+  --color-secondary-glow: color-mix(in srgb, var(--accent-secondary) 20%, transparent);
+  --color-ok:     #15803d;
+  --color-warn:   #b45309;
+  --color-danger: #b91c1c;
+  --grain-opacity: 0.04;
+  --grain-blend:   multiply;
+}
+
+/* Base typography */
+html, body { color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+body { background: var(--color-paper); color: var(--color-ink); }
+
 /* ── Hover bridges ───────────────────────────────────────────────────── */
 .task-row, .day-chip, .event-chip {
   transition: background 0.12s, filter 0.12s, opacity 0.12s;

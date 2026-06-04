@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
-import { useT, FONT_BODY, sourceOf, fmtTime } from '../lib/theme'
+import { FONT_BODY, sourceOf, fmtTime } from '../lib/theme'
 
 const DragCtx = createContext<any>(null)
 export const useDrag = () => useContext(DragCtx)
@@ -38,14 +38,9 @@ export function DragProvider({ children }: { children: React.ReactNode }) {
           if (zone === 'timed') {
             const fracBase  = parseFloat((el as HTMLElement).getAttribute('data-frac-base')  ?? '6')
             const fracScale = parseFloat((el as HTMLElement).getAttribute('data-frac-scale') ?? '48')
-            let scroll = 0
-            let p = (el as HTMLElement).parentElement
-            while (p) {
-              if ('hourScroll' in p.dataset) { scroll = p.scrollTop; break }
-              p = p.parentElement
-            }
+            // getBoundingClientRect() already reflects scroll position — no manual offset needed
             const r = el.getBoundingClientRect()
-            overFrac = snapFrac(fracBase + (e.clientY - r.top + scroll) / fracScale)
+            overFrac = snapFrac(fracBase + (e.clientY - r.top) / fracScale)
           }
           break
         }
@@ -81,13 +76,12 @@ export function DragProvider({ children }: { children: React.ReactNode }) {
 }
 
 function DragGhost({ drag }: { drag: any }) {
-  const T = useT()
   const { item, mode, x, y, overZone, overFrac, overDay } = drag
   if (!x && !y) return null
 
   const color = item?.accent
     || (item?.source ? sourceOf(item.source)?.hex : null)
-    || T.red
+    || 'var(--color-accent)'
 
   const title = item?.title || (mode === 'create' ? 'New event' : '—')
 
@@ -121,9 +115,9 @@ function DragGhost({ drag }: { drag: any }) {
       }}>{title}</div>
       {hint && (
         <div style={{
-          background: T.paperDark,
-          border: `1px solid ${T.rule}`,
-          color: T.ink2,
+          background: 'var(--color-paper-2)',
+          border: `1px solid 'var(--color-line)'`,
+          color: 'var(--color-muted)',
           fontFamily: FONT_BODY, fontSize: 8.5,
           letterSpacing: '0.14em', textTransform: 'uppercase',
           padding: '2px 7px', borderRadius: 3,

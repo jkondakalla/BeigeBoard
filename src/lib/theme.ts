@@ -1,44 +1,3 @@
-import React, { createContext, useContext } from 'react'
-
-export const LIGHT = {
-  paper:      '#EDE2C8',
-  paperDark:  '#E4D5B0',
-  paperDeep:  '#D9C698',
-  ink:        '#1C1408',
-  ink2:       '#6B5038',
-  ink3:       '#9C8060',
-  rule:       '#C8AE88',
-  ruleSoft:   '#DACA9E',
-  red:        '#C8391A',
-  redSoft:    '#E0C0A8',
-  yellow:     '#A87000',
-  yellowSoft: '#D8C070',
-  grain:        0.055,
-  grainBlend:   'multiply',
-  bleedOpacity: 0.10,
-}
-
-export const DARK = {
-  paper:      '#0F0C06',
-  paperDark:  '#0A0703',
-  paperDeep:  '#06040A1A',
-  ink:        '#F2E8D2',
-  ink2:       '#A89272',
-  ink3:       '#6E5C3E',
-  rule:       '#3B2C18',
-  ruleSoft:   '#241A0E',
-  red:        '#E04828',
-  redSoft:    '#3A1108',
-  yellow:     '#E0A020',
-  yellowSoft: '#241600',
-  grain:        0.08,
-  grainBlend:   'screen',
-  bleedOpacity: 0.14,
-}
-
-export const ThemeCtx = createContext(LIGHT)
-export const useT = () => useContext(ThemeCtx)
-
 export const FONT_HEAD = "'Newsreader', 'EB Garamond', Georgia, serif"
 export const FONT_BODY = "'Inter Tight', system-ui, sans-serif"
 export const FONT_NUM  = "'Newsreader', Georgia, serif"
@@ -116,7 +75,7 @@ export function getGreeting() {
 }
 
 export function halate(hex: string | null | undefined, level = 'mid') {
-  if (!hex) return 'none'
+  if (!hex || hex.startsWith('var(')) return 'none'
   const c = hex.replace('#', '')
   const alpha = ({ hi: '88', mid: '55', low: '33', soft: '1f' } as any)[level] || '55'
   const radius = ({ hi: 28, mid: 16, low: 10, soft: 5 } as any)[level] || 16

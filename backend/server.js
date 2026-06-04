@@ -286,6 +286,9 @@ async function syncOutlookEvents(token, userId) {
     if (isAllDay) {
       const adj = new Date(ed); adj.setDate(adj.getDate() - 1);
       const s = isoDateStr(adj); if (s !== due_date) end_date = s;
+    } else {
+      const endStr = isoDateStr(ed);
+      if (endStr !== due_date) end_date = endStr;
     }
     run(
       `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
@@ -449,17 +452,24 @@ async function syncGoogleEvents(auth, userId) {
   run("DELETE FROM items WHERE source='google' AND user_id=?", [userId]);
 
   for (const ev of (data.items || [])) {
-    const start = ev.start?.dateTime || ev.start?.date;
-    if (!start) continue;
     const isAllDay = !!ev.start?.date;
-    const sd = new Date(start);
-    const due_date = isoDateStr(sd);
+    if (!ev.start?.dateTime && !ev.start?.date) continue;
+    // Use date strings directly for all-day events — new Date("YYYY-MM-DD") parses as UTC
+    // midnight and local getDate() returns the previous day in negative-offset timezones.
+    const due_date = isAllDay
+      ? ev.start.date
+      : isoDateStr(new Date(ev.start.dateTime));
+    const sd = isAllDay ? null : new Date(ev.start.dateTime);
     let end_date = null;
     if (ev.end) {
-      const rawEnd = ev.end.dateTime || ev.end.date;
-      if (rawEnd) {
-        const edObj = new Date(rawEnd);
-        if (isAllDay) edObj.setDate(edObj.getDate() - 1);
+      if (isAllDay && ev.end.date) {
+        // Google all-day end dates are exclusive — subtract one day
+        const edArr = ev.end.date.split('-').map(Number);
+        const edObj = new Date(edArr[0], edArr[1] - 1, edArr[2] - 1);
+        const endStr = isoDateStr(edObj);
+        if (endStr !== due_date) end_date = endStr;
+      } else if (!isAllDay && ev.end.dateTime) {
+        const edObj = new Date(ev.end.dateTime);
         const endStr = isoDateStr(edObj);
         if (endStr !== due_date) end_date = endStr;
       }
@@ -468,8 +478,9 @@ async function syncGoogleEvents(auth, userId) {
       `INSERT INTO items (user_id,kind,scope,title,notes,source,due_date,scheduled_time,scheduled_end,location,end_date)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
       [userId,'event','day',ev.summary||'(No title)',ev.description||null,'google',
-       due_date, isAllDay?null:fmt24(sd),
-       (ev.end?.dateTime && !isAllDay)?fmt24(new Date(ev.end.dateTime)):null,
+       due_date,
+       sd ? fmt24(sd) : null,
+       (!isAllDay && ev.end?.dateTime) ? fmt24(new Date(ev.end.dateTime)) : null,
        ev.location||null, end_date]
     );
   }
@@ -638,11 +649,12 @@ function toRow(raw) {
   return { ...raw, completed: raw.completed === 1 };
 }
 
-function cascadeDelete(id, userId) {
+function cascadeDeleteInner(id, userId) {
   const children = all('SELECT id FROM items WHERE parent_id = ? AND user_id = ?', [id, userId]);
-  for (const c of children) cascadeDelete(c.id, userId);
+  for (const c of children) cascadeDeleteInner(c.id, userId);
   run('DELETE FROM items WHERE id = ? AND user_id = ?', [id, userId]);
 }
+const cascadeDelete = db.transaction((id, userId) => cascadeDeleteInner(id, userId));
 
 app.get('/api/items', async (req, res) => {
   try {
@@ -658,6 +670,7 @@ app.get('/api/items', async (req, res) => {
 app.post('/api/items', (req, res) => {
   try {
     const raw  = req.body;
+    if (!raw?.title?.toString().trim()) return res.status(400).json({ error: 'title is required' });
     const d    = { user_id: req.user.sub };
     for (const k of Object.keys(raw)) {
       if (ITEM_COLUMNS.has(k)) d[k] = typeof raw[k] === 'boolean' ? (raw[k] ? 1 : 0) : raw[k];
@@ -673,8 +686,9 @@ app.post('/api/items', (req, res) => {
 
 app.patch('/api/items/:id', (req, res) => {
   try {
-    const { id } = req.params;
-    const raw   = req.body;
+    const id  = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+    const raw = req.body;
     const valid = Object.keys(raw).filter(k => ITEM_COLUMNS.has(k));
     if (!valid.length) return res.status(400).json({ error: 'No valid fields to update' });
     const sets = valid.map(k => `${k} = ?`).join(', ');
@@ -852,7 +866,13 @@ Return ONLY a JSON object with exactly these fields:
     const end    = raw.lastIndexOf('}') + 1;
     if (start < 0 || end <= start) return res.status(502).json({ error: 'AI returned no JSON', raw });
 
-    res.json(JSON.parse(raw.slice(start, end)));
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.slice(start, end));
+    } catch {
+      return res.status(502).json({ error: 'AI returned malformed JSON', raw });
+    }
+    res.json(parsed);
   } catch (e) {
     console.error('[ai/parse-task]', e);
     res.status(500).json({ error: e.message });

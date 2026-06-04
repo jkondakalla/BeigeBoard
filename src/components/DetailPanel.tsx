@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useT, FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate, halate } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, sourceOf, fmtTime, fmtFull, localDate, halate } from '../lib/theme'
 import { getAncestors, getChildren, getAccent, getProgress } from '../lib/seed'
 import { Eyebrow, Checkbox } from './SharedComponents'
 
 export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdateItem, setView, setFocusedGoalId }: any) {
-  const T = useT()
   const [titleEditing, setTitleEditing] = useState(false)
   const [titleVal, setTitleVal]         = useState('')
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -20,7 +19,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
   if (!event) return null
 
-  const accent = (items && getAccent(event, items)) || (event.source && sourceOf(event.source).hex) || T.red
+  const accent = (items && getAccent(event, items)) || (event.source && sourceOf(event.source).hex) || 'var(--color-accent)'
   const isTask = event.kind === 'task'
   const isGoal = event.kind === 'goal'
   const isEvent= event.kind === 'event'
@@ -38,8 +37,8 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
   return (
     <aside className="panel-enter" style={{
-      borderLeft: `1px solid ${T.rule}`,
-      background: T.paperDark,
+      borderLeft: `1px solid 'var(--color-line)'`,
+      background: 'var(--color-paper-2)',
       display: 'flex', flexDirection: 'column',
       overflow: 'hidden',
     }}>
@@ -122,17 +121,17 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                     display: 'flex', alignItems: 'center', gap: 8,
                     paddingLeft: i * 12,
                   }}>
-                    {i > 0 && <span style={{ color: T.ink3, marginRight: 2 }}>↳</span>}
+                    {i > 0 && <span style={{ color: 'var(--color-faint)', marginRight: 2 }}>↳</span>}
                     <span style={{
                       fontFamily: FONT_BODY, fontSize: 8.5, letterSpacing: '0.2em',
-                      textTransform: 'uppercase', color: aAccent || T.ink2,
-                      border: `1px solid ${(aAccent || T.ink2) + '40'}`,
+                      textTransform: 'uppercase', color: aAccent || 'var(--color-muted)',
+                      border: `1px solid ${(aAccent || 'var(--color-muted)') + '40'}`,
                       padding: '1px 6px', flexShrink: 0,
                     }}>{a.scope}</span>
                     <span style={{
                       fontFamily: FONT_HEAD,
                       fontStyle: a.scope === 'year' ? 'normal' : 'italic',
-                      fontSize: 14 - Math.min(i, 2), color: T.ink,
+                      fontSize: 14 - Math.min(i, 2), color: 'var(--color-ink)',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>{a.title}</span>
                   </li>
@@ -148,7 +147,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
         {event.location && (
           <Field label="Where">
-            <div style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 15, color: T.ink }}>
+            <div style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 15, color: 'var(--color-ink)' }}>
               {event.location}
             </div>
           </Field>
@@ -162,7 +161,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                 fontSize: 30, color: accent, lineHeight: 1,
                 textShadow: halate(accent, 'mid'),
               }}>{String(event.attendees).padStart(2, '0')}</span>
-              <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: T.ink2 }}>
+              <span style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: 'var(--color-muted)' }}>
                 people
               </span>
             </div>
@@ -176,9 +175,9 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
               className="btn-action"
               style={{
                 display: 'flex', alignItems: 'center', gap: 9,
-                background: 'transparent', border: `1px solid ${T.rule}`,
+                background: 'transparent', border: `1px solid 'var(--color-line)'`,
                 fontFamily: FONT_BODY, fontSize: 12,
-                padding: '9px 14px', color: T.ink, cursor: 'pointer',
+                padding: '9px 14px', color: 'var(--color-ink)', cursor: 'pointer',
                 letterSpacing: '0.05em',
               }}
             >
@@ -191,28 +190,28 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
         {isGoal && (
           <Field label={`Breakdown · ${prog.total > 0 ? `${prog.done}/${prog.total}` : 'open'}`}>
             {prog.total > 0 && (
-              <div style={{ height: 2, background: T.ruleSoft, marginBottom: 12 }}>
+              <div style={{ height: 2, background: 'var(--color-line-strong)', marginBottom: 12 }}>
                 <div style={{ height: '100%', width: `${prog.pct}%`, background: accent }} />
               </div>
             )}
             {children.length === 0 ? (
               <div style={{
-                padding: '12px 14px', border: `1px dashed ${T.rule}`,
-                fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: T.ink2,
+                padding: '12px 14px', border: `1px dashed 'var(--color-line)'`,
+                fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: 'var(--color-muted)',
               }}>Not broken down yet. Open in the workshop to add steps.</div>
             ) : (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {children.slice(0, 6).map((c: any) => (
                   <li key={c.id} style={{
                     display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 0', borderBottom: `1px solid ${T.ruleSoft}`,
+                    padding: '6px 0', borderBottom: `1px solid 'var(--color-line-strong)'`,
                   }}>
                     <span style={{ width: 4, height: 16, background: accent, opacity: 0.5, flexShrink: 0 }} />
                     <span style={{
                       flex: 1, minWidth: 0,
                       fontFamily: c.kind === 'task' ? FONT_BODY : FONT_HEAD,
                       fontStyle: c.kind === 'task' ? 'normal' : 'italic',
-                      fontSize: 13, color: c.completed ? T.ink2 : T.ink,
+                      fontSize: 13, color: c.completed ? 'var(--color-muted)' : 'var(--color-ink)',
                       textDecoration: c.completed ? 'line-through' : 'none',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>{c.title}</span>
@@ -221,7 +220,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                 {children.length > 6 && (
                   <li style={{
                     fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
-                    color: T.ink2, padding: '6px 0',
+                    color: 'var(--color-muted)', padding: '6px 0',
                   }}>+ {children.length - 6} more</li>
                 )}
               </ul>
@@ -235,7 +234,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
               className="btn-action"
               style={{
                 marginTop: 12,
-                background: accent, color: T.paper, border: 'none',
+                background: accent, color: 'var(--color-paper)', border: 'none',
                 fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.16em',
                 textTransform: 'uppercase', padding: '10px 14px', cursor: 'pointer',
                 width: '100%',
@@ -248,7 +247,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
           <Field label="Notes">
             <p style={{
               fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14,
-              color: T.ink2, margin: 0, lineHeight: 1.5,
+              color: 'var(--color-muted)', margin: 0, lineHeight: 1.5,
             }}>{event.notes}</p>
           </Field>
         )}
@@ -260,7 +259,7 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
                 width: 10, height: 10, background: sourceOf(event.source).hex,
                 borderRadius: '50%',
               }} />
-              <span style={{ fontFamily: FONT_BODY, fontSize: 12, color: T.ink }}>
+              <span style={{ fontFamily: FONT_BODY, fontSize: 12, color: 'var(--color-ink)' }}>
                 {sourceOf(event.source).label}
               </span>
             </div>
@@ -269,16 +268,16 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 
         <div style={{
           display: 'flex', gap: 8, marginTop: 24,
-          paddingTop: 16, borderTop: `1px solid ${T.ruleSoft}`,
+          paddingTop: 16, borderTop: `1px solid 'var(--color-line-strong)'`,
         }}>
           <button
             onClick={() => onDelete?.(event.id)}
             className="btn-action"
             style={{
               flex: 1,
-              background: 'transparent', border: `1px solid ${T.rule}`,
+              background: 'transparent', border: `1px solid 'var(--color-line)'`,
               fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
-              textTransform: 'uppercase', color: T.ink2,
+              textTransform: 'uppercase', color: 'var(--color-muted)',
               padding: '10px 14px', cursor: 'pointer',
             }}
           >Delete</button>
@@ -289,7 +288,6 @@ export function DetailPanel({ event, items, onClose, onToggle, onDelete, onUpdat
 }
 
 function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
-  const T = useT()
   const canEdit = (isTask || isEvent) && !!onUpdateItem
   const isAllDayEvent = isEvent && !event.scheduled_time
 
@@ -327,9 +325,9 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
   }
 
   const inputSty: any = {
-    background: 'transparent', border: `1px solid ${T.rule}`,
+    background: 'transparent', border: `1px solid 'var(--color-line)'`,
     fontFamily: FONT_BODY, fontSize: 11,
-    color: T.ink, padding: '4px 6px', outline: 'none',
+    color: 'var(--color-ink)', padding: '4px 6px', outline: 'none',
   }
 
   const isMultiDay = event.end_date && event.end_date !== event.due_date
@@ -342,7 +340,7 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
           <button onClick={() => setEditing(true)} style={{
             background: 'none', border: 'none',
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
-            color: T.ink2, cursor: 'pointer', padding: 0,
+            color: 'var(--color-muted)', cursor: 'pointer', padding: 0,
             textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2,
           }}>edit</button>
         )}
@@ -354,7 +352,7 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
             <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...inputSty, flex: 1 }} />
             {(isAllDayEvent || (!start && !end)) && (
               <>
-                <span style={{ color: T.ink3, fontSize: 11 }}>→</span>
+                <span style={{ color: 'var(--color-faint)', fontSize: 11 }}>→</span>
                 <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
                   placeholder="End date" style={{ ...inputSty, flex: 1 }} />
               </>
@@ -363,26 +361,26 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
           {!isAllDayEvent && (
             <div style={{ display: 'flex', gap: 6 }}>
               <input type="time" value={start} onChange={e => setStart(e.target.value)} placeholder="Start" style={{ ...inputSty, flex: 1 }} />
-              <span style={{ color: T.ink2, alignSelf: 'center', fontSize: 11 }}>–</span>
+              <span style={{ color: 'var(--color-muted)', alignSelf: 'center', fontSize: 11 }}>–</span>
               <input type="time" value={end}   onChange={e => setEnd(e.target.value)}   placeholder="End"   style={{ ...inputSty, flex: 1 }} />
             </div>
           )}
           <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
             <button onClick={save} className="btn-action" style={{
-              flex: 1, background: T.red, color: T.paper, border: 'none',
+              flex: 1, background: 'var(--color-accent)', color: 'var(--color-paper)', border: 'none',
               fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
               textTransform: 'uppercase', padding: '7px 0', cursor: 'pointer',
             }}>Save</button>
             <button onClick={() => setEditing(false)} style={{
-              flex: 1, background: 'transparent', border: `1px solid ${T.rule}`,
+              flex: 1, background: 'transparent', border: `1px solid 'var(--color-line)'`,
               fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
-              textTransform: 'uppercase', color: T.ink2, padding: '7px 0', cursor: 'pointer',
+              textTransform: 'uppercase', color: 'var(--color-muted)', padding: '7px 0', cursor: 'pointer',
             }}>Cancel</button>
             {(event.due_date || event.scheduled_time) && (
               <button onClick={clear} style={{
-                background: 'transparent', border: `1px solid ${T.rule}`,
+                background: 'transparent', border: `1px solid 'var(--color-line)'`,
                 fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.12em',
-                textTransform: 'uppercase', color: T.ink3, padding: '7px 10px', cursor: 'pointer',
+                textTransform: 'uppercase', color: 'var(--color-faint)', padding: '7px 10px', cursor: 'pointer',
               }}>Clear</button>
             )}
           </div>
@@ -390,33 +388,33 @@ function WhenField({ event, isTask, isEvent, onUpdateItem }: any) {
       ) : (event.due_date || event.scheduled_time) ? (
         <div onClick={() => canEdit && setEditing(true)} style={{ cursor: canEdit ? 'pointer' : 'default' }}>
           {event.due_date && (
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 15, color: T.ink, lineHeight: 1.4 }}>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 15, color: 'var(--color-ink)', lineHeight: 1.4 }}>
               {isMultiDay
                 ? `${fmtFull(event.due_date)} → ${fmtFull(event.end_date)}`
                 : fmtFull(event.due_date)}
             </div>
           )}
           {event.scheduled_time && (
-            <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 14, color: T.ink2, marginTop: 3 }}>
+            <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 14, color: 'var(--color-muted)', marginTop: 3 }}>
               {fmtTime(event.scheduled_time)}{event.scheduled_end ? ` – ${fmtTime(event.scheduled_end)}` : ''}
             </div>
           )}
           {!event.scheduled_time && isTask && (
-            <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 13, color: T.ink2, marginTop: 3 }}>
+            <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 13, color: 'var(--color-muted)', marginTop: 3 }}>
               Anytime · tap edit to schedule
             </div>
           )}
           {isAllDayEvent && !isMultiDay && (
-            <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: T.ink3, marginTop: 3 }}>
+            <div style={{ fontFamily: FONT_NUM, fontStyle: 'italic', fontSize: 12, color: 'var(--color-faint)', marginTop: 3 }}>
               All day
             </div>
           )}
         </div>
       ) : canEdit ? (
         <button onClick={() => setEditing(true)} style={{
-          background: 'transparent', border: `1px dashed ${T.rule}`,
+          background: 'transparent', border: `1px dashed 'var(--color-line)'`,
           fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13,
-          color: T.ink2, cursor: 'pointer', padding: '8px 12px', width: '100%', textAlign: 'left',
+          color: 'var(--color-muted)', cursor: 'pointer', padding: '8px 12px', width: '100%', textAlign: 'left',
         }}>+ Schedule this {isEvent ? 'event' : 'task'}</button>
       ) : null}
     </div>

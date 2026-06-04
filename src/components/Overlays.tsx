@@ -1,8 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useT, FONT_HEAD, FONT_BODY, isoDate, localDate } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, isoDate, localDate } from '../lib/theme'
 
-export function FilmGrain() {
-  const T = useT()
+/* ── Film Grain ─────────────────────────────────────────────────────────── */
+
+interface FilmGrainProps {
+  strength?: number   // 0–1, defaults to CSS --grain-opacity var or 0.07
+}
+
+export function FilmGrain({ strength }: FilmGrainProps) {
+  const opacity = strength
+    ?? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--grain-opacity').trim() || '0.07')
+  const blendMode = getComputedStyle(document.documentElement).getPropertyValue('--grain-blend').trim() || 'screen'
+
   return (
     <svg
       style={{
@@ -10,8 +19,8 @@ export function FilmGrain() {
         width: '100%', height: '100%',
         pointerEvents: 'none',
         zIndex: 9995,
-        opacity: T.grain,
-        mixBlendMode: T.grainBlend as any,
+        opacity,
+        mixBlendMode: blendMode as any,
       }}
       aria-hidden="true"
     >
@@ -25,6 +34,8 @@ export function FilmGrain() {
     </svg>
   )
 }
+
+/* ── Halation (lens bloom SVG filter) ───────────────────────────────────── */
 
 export function Halation() {
   return (
@@ -44,6 +55,8 @@ export function Halation() {
     </svg>
   )
 }
+
+/* ── Artifacts (CRT corner glitches) ────────────────────────────────────── */
 
 let _aid = 0
 function makeArtifact() {
@@ -97,7 +110,8 @@ export function Artifacts() {
   return (
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9997 }}>
       {items.map(a => {
-        const color = a.bright ? '#FFF5E0' : '#1A0F06'
+        // Use CSS vars so artifacts adapt to light/dark theme
+        const color = a.bright ? 'var(--color-ink)' : 'var(--color-paper-2)'
         const shared = { position: 'absolute' as const, opacity: a.peakOp }
         const inner = { width: '100%', height: '100%', background: color, animation: `artifactFlash ${a.dur}ms ease-in-out forwards` }
         const outer: any = a.type === 'scratch'
@@ -109,11 +123,17 @@ export function Artifacts() {
   )
 }
 
-export function ScanLines() {
-  const T = useT()
-  const lineColor = T.grainBlend === 'screen'
-    ? 'rgba(255,255,255,0.018)'
-    : 'rgba(0,0,0,0.022)'
+/* ── Scan Lines ─────────────────────────────────────────────────────────── */
+
+interface ScanLinesProps {
+  strength?: number   // 0–1 scale on opacity, defaults to 1
+}
+
+export function ScanLines({ strength = 1 }: ScanLinesProps) {
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light'
+  const lineColor = isDark
+    ? `rgba(255,255,255,${0.018 * strength})`
+    : `rgba(0,0,0,${0.022 * strength})`
   return (
     <div
       aria-hidden="true"
@@ -128,10 +148,12 @@ export function ScanLines() {
   )
 }
 
+/* ── Cinematic Intro (BeigeBoard-specific) ──────────────────────────────── */
+
 function playStartupAudio() {
   let ctx: AudioContext
   try { ctx = new (window.AudioContext || (window as any).webkitAudioContext)() }
-  catch (e) { return () => {} }
+  catch { return () => {} }
   const t = ctx.currentTime
 
   const thumpOsc = ctx.createOscillator()
@@ -176,7 +198,7 @@ function playStartupAudio() {
     src.start(ct)
   })
 
-  return () => { try { ctx.close() } catch (e) {} }
+  return () => { try { ctx.close() } catch { /* ignore */ } }
 }
 
 export function CinematicIntro({ onDone }: { onDone: () => void }) {
@@ -233,15 +255,15 @@ export function CinematicIntro({ onDone }: { onDone: () => void }) {
         <div className="intro-title" style={{ position: 'relative', zIndex: 2, textAlign: 'center' }}>
           <div style={{
             fontFamily: FONT_HEAD, fontStyle: 'italic', fontWeight: 600,
-            fontSize: 60, color: '#C08800',
+            fontSize: 60, color: 'var(--color-accent)',
             letterSpacing: '-0.02em', lineHeight: 1,
-            textShadow: '0 0 35px rgba(192,136,0,0.45), 0 0 70px rgba(200,57,26,0.12)',
+            textShadow: '0 0 35px var(--color-accent-glow), 0 0 70px var(--color-secondary-glow)',
           }}>
             BeigeBoard
           </div>
           <div style={{
             fontFamily: FONT_BODY, fontSize: 9, letterSpacing: '0.30em',
-            textTransform: 'uppercase', color: 'rgba(200,57,26,0.6)',
+            textTransform: 'uppercase', color: 'var(--color-muted)',
             marginTop: 13,
           }}>
             Calendar · {dateStr}

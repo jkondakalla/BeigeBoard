@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useT } from '../../lib/theme'
 
 /**
  * Chrome — mode-aware atmosphere with film grain, scanlines, halation vignette
@@ -149,7 +148,6 @@ export interface ChromeProps {
 }
 
 export function Chrome({ intensity }: ChromeProps) {
-  const T = useT()
 
   if (intensity === 'off') return null
 
@@ -158,7 +156,7 @@ export function Chrome({ intensity }: ChromeProps) {
   return (
     <>
       <HalationVignette />
-      <FilmGrain opacity={full ? (T as any).grain : ((T as any).grain * 0.5)} blend="screen" />
+      <FilmGrain opacity={full ? 0.07 : (0.07 * 0.5)} blend="screen" />
       {full && <ScanLines />}
       {full && <Artifacts />}
     </>

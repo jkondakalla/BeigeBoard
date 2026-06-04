@@ -1,10 +1,9 @@
 import React, { useState } from 'react'
-import { useT, FONT_HEAD, FONT_BODY, FONT_NUM, localDate, fmtTime, halate, getGreeting } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, fmtTime, halate, getGreeting } from '../lib/theme'
 import { getAncestors, getAccent } from '../lib/seed'
-import { Eyebrow, Checkbox, Plate, TapeReel, RecLamp } from '../components/SharedComponents'
+import { Eyebrow, Checkbox, Plate, RecLamp } from '../components/SharedComponents'
 
 export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView, selectedId, recentlyAdded, readonly }: any) {
-  const T = useT()
   const d = localDate(today)
   const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
@@ -17,15 +16,15 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView
   const rest       = active.slice(1)
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: T.paper }}>
+    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--color-paper)' }}>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '48px 36px 80px' }}>
 
         <div style={{ marginBottom: 36 }}>
           <Eyebrow style={{ marginBottom: 6 }}>{dateStr}</Eyebrow>
           <h1 style={{
             fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 32, lineHeight: 1,
-            margin: 0, letterSpacing: '-0.025em', color: T.ink,
-            textShadow: halate(T.yellow, 'soft'),
+            margin: 0, letterSpacing: '-0.025em', color: 'var(--color-ink)',
+            textShadow: '0 0 5px var(--color-accent-glow)',
           }}>{getGreeting()}</h1>
         </div>
 
@@ -40,8 +39,8 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView
         {overdue.length > 0 && (
           <section style={{ marginTop: 40 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-              <Eyebrow color={T.red} style={{ marginBottom: 10, textShadow: halate(T.red, 'low') }}>{overdue.length} overdue</Eyebrow>
-              <button onClick={() => setView('week')} style={tinyLink(T)}>see the week →</button>
+              <Eyebrow color={'var(--color-accent)'} style={{ marginBottom: 10, textShadow: '0 0 10px var(--color-accent-glow)' }}>{overdue.length} overdue</Eyebrow>
+              <button onClick={() => setView('week')} style={tinyLink()}>see the week →</button>
             </div>
             <Strip tasks={overdue} items={items} onSelect={onSelect} onToggle={onToggle} muted={false} recentlyAdded={recentlyAdded} />
           </section>
@@ -51,7 +50,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView
           <section style={{ marginTop: 40 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
               <Eyebrow>After that · {rest.length} more</Eyebrow>
-              <button onClick={() => setView('week')} style={tinyLink(T)}>the week →</button>
+              <button onClick={() => setView('week')} style={tinyLink()}>the week →</button>
             </div>
             <Strip tasks={rest} items={items} onSelect={onSelect} onToggle={onToggle} recentlyAdded={recentlyAdded} />
           </section>
@@ -61,7 +60,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView
           <details style={{ marginTop: 36, opacity: 0.7 }}>
             <summary style={{
               fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.22em',
-              textTransform: 'uppercase', color: T.ink2, cursor: 'pointer',
+              textTransform: 'uppercase', color: 'var(--color-muted)', cursor: 'pointer',
               padding: '4px 0',
             }}>{done.length} done today</summary>
             <div style={{ marginTop: 10 }}>
@@ -73,11 +72,11 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView
         <footer style={{
           marginTop: 56,
           paddingTop: 18,
-          borderTop: `1px solid ${T.ruleSoft}`,
+          borderTop: `1px solid 'var(--color-line-strong)'`,
           display: 'flex', justifyContent: 'space-between', gap: 12,
         }}>
-          <button onClick={() => setView('week')} style={tinyLink(T)}>open the week →</button>
-          <button onClick={() => setView('tasks')} style={tinyLink(T)}>open the workshop →</button>
+          <button onClick={() => setView('week')} style={tinyLink()}>open the week →</button>
+          <button onClick={() => setView('tasks')} style={tinyLink()}>open the workshop →</button>
         </footer>
       </div>
     </div>
@@ -85,8 +84,7 @@ export function TodayView({ items, today, onSelect, onToggle, onAddTask, setView
 }
 
 function NextCard({ item, items, onSelect, onToggle }: any) {
-  const T = useT()
-  const accent = getAccent(item, items) || T.red
+  const accent = getAccent(item, items) || 'var(--color-accent)'
   const ancestors = getAncestors(item, items)
 
   return (
@@ -95,7 +93,6 @@ function NextCard({ item, items, onSelect, onToggle }: any) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <RecLamp size={7} label="Next" />
-            <TapeReel size={18} color={accent} spinning />
           </div>
           {item.scheduled_time && (
             <span style={{
@@ -112,7 +109,7 @@ function NextCard({ item, items, onSelect, onToggle }: any) {
           <Checkbox id={item.id} completed={item.completed} onToggle={onToggle} color={accent} size={20} />
           <h2 style={{
             flex: 1, fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 36,
-            margin: 0, lineHeight: 1.1, letterSpacing: '-0.025em', color: T.ink,
+            margin: 0, lineHeight: 1.1, letterSpacing: '-0.025em', color: 'var(--color-ink)',
             textDecoration: item.completed ? 'line-through' : 'none',
             textShadow: `0 0 24px ${accent}22`,
           }}>{item.title}</h2>
@@ -125,7 +122,7 @@ function NextCard({ item, items, onSelect, onToggle }: any) {
           }}>
             <span style={{ width: 5, height: 5, background: accent, boxShadow: `0 0 6px ${accent}cc` }} />
             <span style={{
-              fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14, color: T.ink2,
+              fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 14, color: 'var(--color-muted)',
               lineHeight: 1.3,
             }}>
               {ancestors.slice().reverse().map((a: any) => a.title).join('  ›  ')}
@@ -138,7 +135,6 @@ function NextCard({ item, items, onSelect, onToggle }: any) {
 }
 
 function EmptyDay({ onAdd, today }: any) {
-  const T = useT()
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
@@ -157,7 +153,7 @@ function EmptyDay({ onAdd, today }: any) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ prompt: draft.trim() }),
+        body: JSON.stringify({ text: draft.trim(), today }),
       })
       if (!r.ok) throw new Error()
       const parsed = await r.json()
@@ -174,13 +170,13 @@ function EmptyDay({ onAdd, today }: any) {
   return (
     <article style={{
       padding: '40px 36px',
-      border: `1px dashed ${T.rule}`,
-      background: T.paperDark,
+      border: `1px dashed 'var(--color-line)'`,
+      background: 'var(--color-paper-2)',
     }}>
       <Eyebrow style={{ marginBottom: 6 }}>The day is open.</Eyebrow>
       <p style={{
         fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 20,
-        color: T.ink, margin: '0 0 20px', lineHeight: 1.3,
+        color: 'var(--color-ink)', margin: '0 0 20px', lineHeight: 1.3,
       }}>Nothing has been written down yet.</p>
 
       {onAdd && (adding ? (
@@ -195,8 +191,8 @@ function EmptyDay({ onAdd, today }: any) {
             placeholder="Describe a task — or let AI parse it…"
             style={{
               flex: 1, background: 'transparent', border: 'none',
-              borderBottom: `1px solid ${T.rule}`,
-              fontFamily: FONT_HEAD, fontSize: 22, color: T.ink, outline: 'none',
+              borderBottom: `1px solid 'var(--color-line)'`,
+              fontFamily: FONT_HEAD, fontSize: 22, color: 'var(--color-ink)', outline: 'none',
               padding: '6px 2px',
             }}
           />
@@ -206,15 +202,15 @@ function EmptyDay({ onAdd, today }: any) {
             className="btn-action"
             title="Let AI parse this into a structured task"
             style={{
-              background: aiLoading ? T.paperDark : 'transparent',
-              color: T.yellow, border: `1px solid ${T.yellow}55`,
+              background: aiLoading ? 'var(--color-paper-2)' : 'transparent',
+              color: 'var(--color-accent)', border: `1px solid var(--color-accent-glow)`,
               fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
               textTransform: 'uppercase', padding: '10px 14px',
               cursor: aiLoading ? 'wait' : 'pointer', opacity: aiLoading ? 0.6 : 1,
             }}
           >{aiLoading ? '…' : '✦ AI'}</button>
           <button onClick={handle} className="btn-action" style={{
-            background: T.red, color: T.paper, border: 'none',
+            background: 'var(--color-accent)', color: 'var(--color-paper)', border: 'none',
             fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em',
             textTransform: 'uppercase', padding: '10px 18px', cursor: 'pointer',
           }}>Add →</button>
@@ -224,7 +220,7 @@ function EmptyDay({ onAdd, today }: any) {
           onClick={() => setAdding(true)}
           className="btn-action"
           style={{
-            background: T.ink, color: T.paper, border: 'none',
+            background: 'var(--color-ink)', color: 'var(--color-paper)', border: 'none',
             fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em',
             textTransform: 'uppercase', padding: '12px 22px', cursor: 'pointer',
           }}
@@ -235,24 +231,23 @@ function EmptyDay({ onAdd, today }: any) {
 }
 
 function ClearedDay({ onceMore }: any) {
-  const T = useT()
   return (
     <article style={{
       padding: '40px 36px',
-      border: `1px solid ${T.rule}`,
-      background: T.paperDark,
+      border: `1px solid 'var(--color-line)'`,
+      background: 'var(--color-paper-2)',
     }}>
-      <Eyebrow style={{ marginBottom: 6, color: T.yellow }}>Today is clear.</Eyebrow>
+      <Eyebrow style={{ marginBottom: 6, color: 'var(--color-accent)' }}>Today is clear.</Eyebrow>
       <p style={{
         fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 22,
-        color: T.ink, margin: '0 0 16px', lineHeight: 1.3,
+        color: 'var(--color-ink)', margin: '0 0 16px', lineHeight: 1.3,
       }}>Every task on today's list is done.</p>
       <button
         onClick={onceMore}
         style={{
-          background: 'transparent', border: `1px solid ${T.rule}`,
+          background: 'transparent', border: `1px solid var(--color-line)`,
           fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em',
-          textTransform: 'uppercase', color: T.ink, cursor: 'pointer',
+          textTransform: 'uppercase', color: 'var(--color-ink)', cursor: 'pointer',
           padding: '10px 18px',
         }}
       >Plan something for tomorrow →</button>
@@ -261,15 +256,14 @@ function ClearedDay({ onceMore }: any) {
 }
 
 function Strip({ tasks, items, onSelect, onToggle, muted, recentlyAdded }: any) {
-  const T = useT()
   return (
     <ol style={{
       listStyle: 'none', padding: 0, margin: 0,
-      borderTop: `1px solid ${T.ruleSoft}`,
+      borderTop: `1px solid var(--color-line-strong)`,
       opacity: muted ? 0.55 : 1,
     }}>
       {tasks.map((task: any) => {
-        const accent = getAccent(task, items) || T.ink2
+        const accent = getAccent(task, items) || 'var(--color-muted)'
         const ancestors = getAncestors(task, items)
         const yearGoal = ancestors[ancestors.length - 1]
         const isNew = recentlyAdded?.has(task.id)
@@ -283,23 +277,23 @@ function Strip({ tasks, items, onSelect, onToggle, muted, recentlyAdded }: any) 
               display: 'grid', gridTemplateColumns: 'auto 1fr auto',
               gap: 12, alignItems: 'center',
               padding: '11px 6px',
-              borderBottom: `1px solid ${T.ruleSoft}`,
+              borderBottom: `1px solid var(--color-line-strong)`,
               cursor: 'pointer',
-              '--hover-bg': T.paperDark,
+              '--hover-bg': 'var(--color-paper-2)',
             } as any}
           >
             <Checkbox id={task.id} completed={task.completed} onToggle={onToggle} color={accent} size={14} />
             <div style={{ minWidth: 0 }}>
               <div style={{
                 fontFamily: FONT_HEAD, fontSize: 15.5,
-                color: task.completed ? T.ink2 : T.ink,
+                color: task.completed ? 'var(--color-muted)' : 'var(--color-ink)',
                 textDecoration: task.completed ? 'line-through' : 'none',
                 lineHeight: 1.25,
               }}>{task.title}</div>
               {yearGoal && (
                 <div style={{
                   fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11.5,
-                  color: T.ink2, marginTop: 2, lineHeight: 1.2,
+                  color: 'var(--color-muted)', marginTop: 2, lineHeight: 1.2,
                 }}>{yearGoal.title}</div>
               )}
             </div>
@@ -316,11 +310,11 @@ function Strip({ tasks, items, onSelect, onToggle, muted, recentlyAdded }: any) 
   )
 }
 
-function tinyLink(T: any): React.CSSProperties {
+function tinyLink(_?: any): React.CSSProperties {
   return {
     background: 'transparent', border: 'none',
     fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12,
-    color: T.ink2, cursor: 'pointer', padding: 0,
+    color: 'var(--color-muted)', cursor: 'pointer', padding: 0,
     textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3,
   }
 }

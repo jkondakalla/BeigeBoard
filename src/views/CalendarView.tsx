@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { useT, FONT_HEAD, FONT_BODY, FONT_NUM, localDate, isoDate, addDays, fmtTime, halate, sourceOf } from '../lib/theme'
+import { FONT_HEAD, FONT_BODY, FONT_NUM, localDate, isoDate, addDays, fmtTime, halate, sourceOf } from '../lib/theme'
 import { useDrag } from '../providers/DragProvider'
 import { Eyebrow, Checkbox } from '../components/SharedComponents'
 
@@ -51,7 +51,6 @@ function buildGrid(iso: string) {
 }
 
 export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, onAddItem, selectedId, onWeekJump }: any) {
-  const T = useT()
   const { drag, beginDrag } = useDrag()
 
   const [cursor,   setCursor]   = useState(() => monthStart(today))
@@ -104,24 +103,24 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
   const anyDrag = !!drag
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', background: T.paper }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', background: 'var(--color-paper)' }}>
 
       <aside style={{
         width: 220, flexShrink: 0,
-        borderRight: `1px solid ${T.rule}`,
-        background: T.paperDark,
+        borderRight: `1px solid 'var(--color-line)'`,
+        background: 'var(--color-paper-2)',
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
       }}>
-        <div style={{ padding: '16px 16px 12px', borderBottom: `1px solid ${T.rule}` }}>
+        <div style={{ padding: '16px 16px 12px', borderBottom: `1px solid 'var(--color-line)'` }}>
           <Eyebrow>Unscheduled · {unscheduled.length}</Eyebrow>
-          <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12, color: T.ink2, margin: '4px 0 0', lineHeight: 1.35 }}>
+          <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 12, color: 'var(--color-muted)', margin: '4px 0 0', lineHeight: 1.35 }}>
             Drag onto a date to schedule
           </p>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
           {unscheduled.length === 0 ? (
-            <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: T.ink3, margin: '12px 4px' }}>
+            <p style={{ fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 13, color: 'var(--color-faint)', margin: '12px 4px' }}>
               Nothing left to place.
             </p>
           ) : unscheduled.map((it: any) => (
@@ -141,29 +140,29 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '14px 24px 12px',
-          borderBottom: `1px solid ${T.rule}`,
-          background: T.paper, flexShrink: 0,
+          borderBottom: `1px solid 'var(--color-line)'`,
+          background: 'var(--color-paper)', flexShrink: 0,
         }}>
-          <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 26, margin: 0, letterSpacing: '-0.02em', color: T.ink }}>
-            <em style={{ color: T.red, fontStyle: 'italic', textShadow: halate(T.red, 'mid') }}>
+          <h2 style={{ fontFamily: FONT_HEAD, fontWeight: 500, fontSize: 26, margin: 0, letterSpacing: '-0.02em', color: 'var(--color-ink)' }}>
+            <em style={{ color: 'var(--color-accent)', fontStyle: 'italic', textShadow: '0 0 16px var(--color-accent-glow)' }}>
               {monthLabel(cursor)}
             </em>
           </h2>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => setCursor(c => addMonths(c, -1))} style={navBtn(T, false)}>‹</button>
-            <button onClick={() => setCursor(monthStart(today))}     style={navBtn(T, true)}>This month</button>
-            <button onClick={() => setCursor(c => addMonths(c, 1))}  style={navBtn(T, false)}>›</button>
+            <button onClick={() => setCursor(c => addMonths(c, -1))} style={navBtn(false)}>‹</button>
+            <button onClick={() => setCursor(monthStart(today))}     style={navBtn(true)}>This month</button>
+            <button onClick={() => setCursor(c => addMonths(c, 1))}  style={navBtn(false)}>›</button>
           </div>
         </div>
 
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-          borderBottom: `1px solid ${T.rule}`, background: T.paperDark, flexShrink: 0,
+          borderBottom: `1px solid 'var(--color-line)'`, background: 'var(--color-paper-2)', flexShrink: 0,
         }}>
           {DOW.map(d => (
             <div key={d} style={{
-              fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.ink2,
-              padding: '6px 10px', borderRight: d !== 'Sun' ? `1px solid ${T.rule}` : 'none',
+              fontFamily: FONT_BODY, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-muted)',
+              padding: '6px 10px', borderRight: d !== 'Sun' ? `1px solid 'var(--color-line)'` : 'none',
             }}>{d}</div>
           ))}
         </div>
@@ -180,7 +179,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
               <div key={wi} style={{
                 flex: 1, position: 'relative',
                 display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-                borderBottom: wi < 5 ? `1px solid ${T.ruleSoft}` : 'none',
+                borderBottom: wi < 5 ? `1px solid 'var(--color-line-strong)'` : 'none',
                 minHeight: 90 + barZoneH,
               }}>
                 {barLanes > 0 && (
@@ -214,7 +213,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                             overflow: 'hidden',
                             cursor: 'grab',
                             opacity: isDraggingThis ? 0.35 : 1,
-                            outline: selectedId === bar.ev.id ? `2px solid ${T.yellow}` : 'none',
+                            outline: selectedId === bar.ev.id ? `2px solid 'var(--color-accent)'` : 'none',
                             outlineOffset: -2,
                             userSelect: 'none',
                             transition: 'opacity 0.1s',
@@ -250,18 +249,18 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                         }
                       }}
                       style={{
-                        borderRight: ci < 6 ? `1px solid ${T.ruleSoft}` : 'none',
+                        borderRight: ci < 6 ? `1px solid 'var(--color-line-strong)'` : 'none',
                         background: isOver
-                          ? `${T.red}18`
+                          ? `var(--color-accent)18`
                           : isToday
-                          ? `${T.redSoft}55`
+                          ? `var(--color-accent-soft)55`
                           : !cell.inMonth
                           ? 'rgba(0,0,0,0.04)'
-                          : T.paper,
+                          : 'var(--color-paper)',
                         outline: isOver
-                          ? `1px dashed ${T.red}`
+                          ? `1px dashed 'var(--color-accent)'`
                           : isTarget
-                          ? `1px dashed ${T.red}33`
+                          ? `1px dashed var(--color-accent-glow)`
                           : 'none',
                         outlineOffset: -1,
                         padding: `${CV_DAY_NUM + barZoneH + 2}px 6px 6px`,
@@ -276,10 +275,10 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                           position: 'absolute',
                           top: 5, left: `calc(${(ci / 7) * 100}% + 6px)`,
                           fontFamily: FONT_NUM, fontSize: 14,
-                          color: isToday ? T.red : !cell.inMonth ? T.ink3 : T.ink2,
+                          color: isToday ? 'var(--color-accent)' : !cell.inMonth ? 'var(--color-faint)' : 'var(--color-muted)',
                           fontStyle: isToday ? 'italic' : 'normal',
                           fontWeight: isToday ? 500 : 400,
-                          textShadow: isToday ? halate(T.red, 'low') : 'none',
+                          textShadow: isToday ? '0 0 10px var(--color-accent-glow)' : 'none',
                           lineHeight: 1, cursor: 'pointer', zIndex: 3,
                         }}
                         title="Open in Week view"
@@ -299,7 +298,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                           />
                         ))}
                         {cellItems.length > 4 && (
-                          <span style={{ fontFamily: FONT_BODY, fontSize: 9.5, color: T.ink3, fontStyle: 'italic', paddingLeft: 4 }}>
+                          <span style={{ fontFamily: FONT_BODY, fontSize: 9.5, color: 'var(--color-faint)', fontStyle: 'italic', paddingLeft: 4 }}>
                             +{cellItems.length - 4} more
                           </span>
                         )}
@@ -316,9 +315,9 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
                               if (e.key === 'Escape') setQuickAdd(null)
                             }}
                             style={{
-                              background: 'transparent', border: `1px solid ${T.red}`,
+                              background: 'transparent', border: `1px solid 'var(--color-accent)'`,
                               fontFamily: FONT_HEAD, fontStyle: 'italic', fontSize: 11,
-                              color: T.ink, outline: 'none', padding: '2px 5px',
+                              color: 'var(--color-ink)', outline: 'none', padding: '2px 5px',
                               width: '100%', boxSizing: 'border-box',
                             }}
                           />
@@ -337,8 +336,7 @@ export function CalendarView({ items, today, onSelect, onToggle, onUpdateItem, o
 }
 
 function CalTaskChip({ item, isDragging, isSelected, onSelect, onToggle, compact, onMouseDown }: any) {
-  const T = useT()
-  const accent = item.accent || T.ink2
+  const accent = item.accent || 'var(--color-muted)'
 
   if (isDragging) {
     return (
@@ -360,18 +358,18 @@ function CalTaskChip({ item, isDragging, isSelected, onSelect, onToggle, compact
         padding: compact ? '2px 5px 2px 4px' : '5px 8px 5px 6px',
         background: item.completed ? 'transparent' : `linear-gradient(180deg, rgba(255,255,255,0.12) 0%, rgba(0,0,0,0.09) 100%), ${accent}`,
         boxShadow: item.completed ? 'none' : `inset 0 1px 0 rgba(255,255,255,0.18), 0 1px 5px rgba(0,0,0,0.32)`,
-        border: item.completed ? `1px solid ${T.ruleSoft}` : 'none',
-        color: item.completed ? T.ink2 : 'rgba(255,255,255,0.93)',
+        border: item.completed ? `1px solid 'var(--color-line-strong)'` : 'none',
+        color: item.completed ? 'var(--color-muted)' : 'rgba(255,255,255,0.93)',
         fontFamily: FONT_BODY, fontSize: compact ? 10 : 11.5,
         cursor: 'grab',
-        outline: isSelected ? `1.5px solid ${T.yellow}` : 'none',
+        outline: isSelected ? `1.5px solid 'var(--color-accent)'` : 'none',
         outlineOffset: -1,
         userSelect: 'none', overflow: 'hidden',
       }}
     >
       <Checkbox
         id={item.id} completed={item.completed} onToggle={onToggle}
-        color={item.completed ? T.ink2 : 'rgba(255,255,255,0.7)'}
+        color={item.completed ? 'var(--color-muted)' : 'rgba(255,255,255,0.7)'}
         size={compact ? 9 : 11}
       />
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: item.completed ? 'line-through' : 'none' }}>
@@ -386,14 +384,14 @@ function CalTaskChip({ item, isDragging, isSelected, onSelect, onToggle, compact
   )
 }
 
-function navBtn(T: any, primary?: boolean) {
+function navBtn(primary?: boolean) {
   return {
-    background: primary ? T.red : 'transparent',
-    border: `1px solid ${primary ? T.red : T.rule}`,
-    color: primary ? T.paper : T.ink2,
+    background: primary ? 'var(--color-accent)' : 'transparent',
+    border: `1px solid ${primary ? 'var(--color-accent)' : 'var(--color-line)'}`,
+    color: primary ? 'var(--color-paper)' : 'var(--color-muted)',
     fontFamily: FONT_BODY, fontSize: 10, letterSpacing: '0.14em',
     textTransform: 'uppercase' as const, padding: '6px 14px',
     cursor: 'pointer',
-    boxShadow: primary ? `0 0 10px ${T.red}44` : 'none',
+    boxShadow: primary ? `0 0 10px 'var(--color-accent-glow)'` : 'none',
   }
 }

@@ -2,7 +2,7 @@ name: jkos-prod-bb
 services:
   bb-app:
     build: .
-    container_name: staging-bb-app
+    container_name: bb-app
     restart: unless-stopped
     env_file: .env
     environment:
@@ -10,15 +10,13 @@ services:
       DB_PATH: /data/beigeBoard.db
       STATIC_DIR: /app/dist
     volumes:
-      - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends-Staging/BeigeBoard-Data}:/data
+      - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends/BeigeBoard-Data}:/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
-      - bb-net
-      - nginx-staging-proxy
+      - jkos-internal
+
 networks:
-  bb-net:
-    name: staging-bb-net
-  nginx-staging-proxy:
+  jkos-internal:
     external: true
-    name: nginx-staging-proxy
+    name: jkos-internal
