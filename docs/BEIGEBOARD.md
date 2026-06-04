@@ -365,7 +365,7 @@ curl -s http://localhost:3001/health | jq .status  # → "ok"
 |----------|-----------|--------------|
 | `JKOS_AUTH_URL` | `https://auth.jkos.net` | `https://staging.jkos.net/auth` |
 | `VITE_JKOS_AUTH_URL` | `https://auth.jkos.net` | `https://staging.jkos.net/auth` |
-| `SHELL_URL` | `https://beigeboard.jkos.net` | `https://staging.jkos.net/beigeboard` |
+| `SHELL_URL` | `https://beigeboard.jkos.net` | `https://staging.jkos.net` |
 | `GOOGLE_REDIRECT_URI` | `https://beigeboard.jkos.net/api/auth/google/callback` | `https://beigeboard.jkos.net/api/auth/google/callback` (unchanged — calendar OAuth uses prod) |
 | `BEIGEBOARD_DATA_PATH` | `/mnt/Luna/Backends/BeigeBoard-Data` | `/mnt/Luna/Backends-Staging/BeigeBoard-Data` |
 

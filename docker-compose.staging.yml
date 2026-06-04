@@ -5,6 +5,8 @@ services:
       context: .
       args:
         VITE_BASE: /beigeboard/
+        VITE_JKOS_AUTH_URL: https://staging.jkos.net/auth
+        VITE_API_URL: /beigeboard
     container_name: staging-bb-app
     restart: unless-stopped
     env_file: .env
@@ -12,6 +14,8 @@ services:
       PORT: "3001"
       DB_PATH: /data/beigeBoard.db
       STATIC_DIR: /app/dist
+      JKOS_AUTH_URL: https://staging.jkos.net/auth
+      SHELL_URL: https://staging.jkos.net
     volumes:
       - ${BEIGEBOARD_DATA_PATH:-/mnt/Luna/Backends-Staging/BeigeBoard-Data}:/data
     extra_hosts:
