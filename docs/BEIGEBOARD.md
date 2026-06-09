@@ -9,7 +9,7 @@
 **Container (staging):** `staging-bb-app` on `nginx-staging-proxy`  
 **Port:** 3001 (internal), exposed via nginx  
 **Tech:** React 18 · TypeScript 5.6 · Vite 6 · Express.js · better-sqlite3 · jsonwebtoken (RS256 verify only) · googleapis  
-**Last updated:** 2026-06-04 (theme system + unified aesthetics)
+**Last updated:** 2026-06-09
 
 ---
 
@@ -63,7 +63,7 @@ app.use((req, res, next) => {
 })
 ```
 
-**Dev mode fallback:** If `JKOS_AUTH_PUBLIC_KEY` is empty (local dev without jkOS Auth running), the middleware falls back to `req.user = { sub: 1, role: 'admin' }` — full admin access. This fallback ONLY activates when the key is completely absent. In production the key is always set.
+**Dev mode fallback:** If `JKOS_AUTH_PUBLIC_KEY` is empty or whitespace-only and `NODE_ENV` is not `production`, the middleware falls back to `req.user = { sub: 1, role: 'admin' }` — full admin access for local dev. When `NODE_ENV=production` (set in the Dockerfile final stage), a missing or blank key causes the server to exit at boot with a fatal log line rather than opening access.
 
 **`req.user` shape:**
 ```typescript
@@ -95,6 +95,7 @@ CREATE TABLE users (
 **Note:** BeigeBoard no longer creates or manages users directly. The `users` table exists for FK relationships with `calendar_tokens` and `items`. Users are identified by `req.user.sub` from the jkOS Auth JWT.
 
 ### `calendar_tokens`
+**Original schema (pre-Migration 3):** `user_id` has a FK to `users(id)`. After Migration 3 (`detach_user_fk`) the table is rebuilt without this FK — see below.
 ```sql
 CREATE TABLE calendar_tokens (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,6 +113,8 @@ CREATE TABLE calendar_tokens (
 Migration `ALTER TABLE` statements use `catch (e) { if (!e.message?.includes('duplicate column')) throw e }` — they swallow only "duplicate column" errors (idempotent re-runs) and rethrow everything else.
 
 ### `items`
+**Original schema (pre-Migration 3):** `user_id` has a FK to `users(id)`. After Migration 3 (`detach_user_fk`) the table is rebuilt without this FK — see below.
+
 Unified table for all calendar events and tasks:
 ```sql
 CREATE TABLE items (
@@ -141,6 +144,8 @@ CREATE TABLE items (
 
 ### Migration 3: `detach_user_fk`
 A significant migration that rebuilds `items` and `calendar_tokens` tables without FK constraints on `user_id`, and drops the old `sessions` table. This allows BeigeBoard to work with user IDs provided externally by jkOS Auth without requiring a local user record.
+
+**Effective schema after Migration 3:** both `items.user_id` and `calendar_tokens.user_id` have no FK reference — the column exists as a plain `INTEGER` populated from `req.user.sub` (the jkOS Auth JWT subject). The `users` table is retained for backward compatibility but is no longer written to by normal app flow.
 
 ---
 
@@ -210,6 +215,14 @@ All routes below `/api/` (except noted public paths) require a valid `jkos_token
 
 ## 6. AI Task Parsing
 
+**Gate:** `POST /api/ai/parse-task` is disabled by default. It only activates when the backend env var `BB_AI_ENABLED=true` is set. The frontend `✦ AI` button is only rendered when the Vite build arg `VITE_BB_AI_ENABLED=true` is set at build time. Both default to `false` (disabled) until LazurOS is no longer a stub.
+
+Set both flags to enable once LazurOS is real (see ROADMAP.md Priority 2):
+- `BB_AI_ENABLED=true` in `BeigeBoard/.env`
+- `VITE_BB_AI_ENABLED=true` in the docker-compose build args
+
+When disabled: the endpoint returns `503 { error: 'AI parsing is not enabled on this instance.' }` and the UI button is absent.
+
 `POST /api/ai/parse-task` receives `{ text: string, model?: string }`.
 
 The backend calls LazurOS with a structured prompt asking the LLM to extract:
@@ -276,13 +289,13 @@ useJkOSPreferences() → GET auth.jkos.net/auth/profile → applyTheme() + setEf
 
 ### CSS Variable Theme System
 
-BeigeBoard uses CSS custom properties on `[data-theme="dark|light"]`. There is **no React ThemeContext** — all component styling uses CSS variables directly:
+BeigeBoard uses CSS custom properties on `[data-mode="dark|paper"]`. There is **no React ThemeContext** — all component styling uses CSS variables directly:
 
 ```css
 /* Dark mode — warm amber retro */
-:root[data-theme="dark"] { --color-paper: #0f0c06; --color-ink: #f2e8d2; --color-accent: var(--accent-base); … }
+:root[data-mode="dark"] { --color-paper: #0f0c06; --color-ink: #f2e8d2; --color-accent: var(--accent-base); … }
 /* Light mode — warm parchment */
-:root[data-theme="light"] { --color-paper: #ede2c8; --color-ink: #1c1408; … }
+:root[data-mode="paper"] { --color-paper: #ede2c8; --color-ink: #1c1408; … }
 ```
 
 `--accent-base` and `--accent-secondary` are set by `applyTheme()` at runtime from jkAuth preferences.
@@ -316,6 +329,8 @@ If two API calls both get `TOKEN_EXPIRED` simultaneously, only one refresh reque
 | `LAZUROS_URL` | For AI | `http://host.docker.internal:8080` |
 | `LAZUROS_TOKEN` | For AI | Must match `LazurOS/.env` and SylibOS (`SylibOS/.env`) |
 | `LAZUROS_DEFAULT_MODEL` | For AI | `llama3.2` |
+| `BB_AI_ENABLED` | Defaults `false` | Set `true` to enable the parse-task endpoint. Keep `false` while LazurOS is a stub. |
+| `VITE_BB_AI_ENABLED` | Defaults `false` | Build arg — baked into frontend bundle. Set `true` to show the `✦ AI` button. Must match `BB_AI_ENABLED`. |
 | `PORT` | Defaults 3001 | Set in docker-compose |
 | `DB_PATH` | Defaults in-dir | `/data/beigeBoard.db` in container |
 | `STATIC_DIR` | Auto-detected | `/app/dist` in container |
@@ -379,9 +394,9 @@ The staging branch sets `base: '/beigeboard/'` in `vite.config.ts` so the SPA as
 
 - The BeigeBoard backend serves the SPA from `/app/dist` — the express server has a catch-all `GET *` that returns `dist/index.html`.
 - `seedDefaults(userId)` is called lazily on `GET /api/items` when the user has no rows. Only runs for non-guest users.
-- Calendar callbacks use `req.user.sub` (the jkOS Auth user ID). The `user_id` FK in `calendar_tokens` references a local `users` table, upserted lazily.
+- Calendar callbacks use `req.user.sub` (the jkOS Auth user ID). After Migration 3, `calendar_tokens.user_id` has no FK — it is a plain integer set to `req.user.sub`. No local `users` upsert is required.
 - `bcrypt` is intentionally NOT in `backend/package.json` — BeigeBoard no longer hashes passwords.
-- **No React ThemeContext** — `DARK`, `LIGHT`, `ThemeCtx`, `useT` have been removed from `src/lib/theme.ts`. All theming is via CSS variables on `data-theme`. Do not re-introduce ThemeContext.
+- **No React ThemeContext** — `DARK`, `LIGHT`, `ThemeCtx`, `useT` have been removed from `src/lib/theme.ts`. All theming is via CSS variables on `data-mode`. Do not re-introduce ThemeContext.
 - **One profile fetch** — `useJkOSPreferences()` in `App.tsx` owns all theme/effects state. `SettingsPanel` receives props; it does not call `useJkOSPreferences()` internally.
 - **`halate()` guard** — `halate()` returns `'none'` for CSS variable strings (e.g. `'var(--color-accent)'`). Pass hex values directly if you need a real shadow.
 - Timer types: use `ReturnType<typeof setTimeout>`, not `NodeJS.Timeout`.

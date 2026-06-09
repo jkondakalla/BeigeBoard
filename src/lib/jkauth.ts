@@ -1,3 +1,5 @@
+import { applyJkOSMode, applyJkOSTheme as designApplyJkOSTheme } from '@design/utils/applyJkOSTheme'
+
 const AUTH_URL = import.meta.env.VITE_JKOS_AUTH_URL ?? 'https://auth.jkos.net'
 
 export interface JkOSTheme {
@@ -85,12 +87,12 @@ export async function patchProfile(preferences: Partial<UserPreferences>): Promi
 }
 
 export function applyTheme(theme: JkOSTheme): void {
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  const isDark = theme.mode === 'dark' || (theme.mode === 'system' && prefersDark)
-  const root = document.documentElement
-  root.setAttribute('data-theme', isDark ? 'dark' : 'light')
-  root.style.setProperty('--accent-base',      theme.primary)
-  root.style.setProperty('--accent-secondary', theme.secondary)
+  const isDark = applyJkOSMode(theme.mode)
+  designApplyJkOSTheme({
+    mode:  theme.mode,
+    dark:  { primary: theme.primary, secondary: theme.secondary },
+    light: { primary: theme.primary, secondary: theme.secondary },
+  }, isDark)
 }
 
 export { AUTH_URL }

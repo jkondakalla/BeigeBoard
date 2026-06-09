@@ -130,7 +130,7 @@ interface ScanLinesProps {
 }
 
 export function ScanLines({ strength = 1 }: ScanLinesProps) {
-  const isDark = document.documentElement.getAttribute('data-theme') !== 'light'
+  const isDark = document.documentElement.getAttribute('data-mode') === 'dark'
   const lineColor = isDark
     ? `rgba(255,255,255,${0.018 * strength})`
     : `rgba(0,0,0,${0.022 * strength})`

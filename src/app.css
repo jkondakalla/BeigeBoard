@@ -1,8 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500;1,600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&display=swap');
+@import "@design/tokens/hub.css";
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
-body { font-family: 'Inter Tight', system-ui, sans-serif; }
+body { font-family: var(--hub-font-mono); }
 button { border-radius: 0; font-family: inherit; }
 button:focus, input:focus, select:focus { outline: none; }
 
@@ -82,92 +82,74 @@ button:focus, input:focus, select:focus { outline: none; }
 .now-dot      { animation: pulseOpacity 1.8s ease-in-out infinite; }
 .check-pop    { animation: checkBounce 0.25s ease-out; }
 
-/* ── Design token system (data-theme) ───────────────────────────────── */
+/* ── BeigeBoard accent overrides ─────────────────────────────────────── */
+/* Slightly more orange than ORDECK's burnt sienna on paper */
+:root {
+  --accent:      #c05c15;
+  --accent-warm: #a04510;
+  --accent-soft: #f0d8c0;
+}
+:root[data-mode="dark"] {
+  --accent:      #e8a020;
+  --accent-warm: #f0b840;
+  --accent-soft: #5a4010;
+}
 
-/* BeigeBoard dark — warm amber retro, the original BB identity */
-:root[data-theme="dark"] {
-  --accent-base:      #ffb000;
-  --accent-secondary: #4ecdc4;
-  --color-paper:      #0f0c06;
-  --color-paper-2:    #150f08;
-  --color-card:       #1a1208;
-  --color-card-2:     #211809;
-  --color-ink:        #f2e8d2;
-  --color-muted:      #a89272;
-  --color-faint:      #6e5c3e;
-  --color-line:       #3b2c18;
-  --color-line-strong:#4f3d22;
-  --color-accent:        var(--accent-base);
-  --color-accent-bright: color-mix(in srgb, var(--accent-base) 65%, #fff);
-  --color-accent-dim:    color-mix(in srgb, var(--accent-base) 50%, #000);
-  --color-accent-deep:   color-mix(in srgb, var(--accent-base) 22%, #000);
-  --color-accent-glow:   color-mix(in srgb, var(--accent-base) 38%, transparent);
-  --color-accent-soft:   color-mix(in srgb, var(--accent-base) 10%, var(--color-card));
-  --color-accent-ink:    color-mix(in srgb, var(--accent-base) 65%, #fff);
-  --color-accent-contrast: #000;
-  --color-secondary:      var(--accent-secondary);
-  --color-secondary-dim:  color-mix(in srgb, var(--accent-secondary) 50%, #000);
-  --color-secondary-glow: color-mix(in srgb, var(--accent-secondary) 38%, transparent);
+/* ── --color-* aliases → --hub-* (for component compatibility) ───────── */
+:root {
+  --color-paper:          var(--hub-bg-0);
+  --color-paper-2:        var(--hub-bg-1);
+  --color-card:           var(--hub-bg-2);
+  --color-card-2:         var(--hub-bg-3);
+  --color-ink:            var(--hub-cream-bright);
+  --color-muted:          var(--hub-cream);
+  --color-faint:          var(--hub-cream-dim);
+  --color-line:           var(--hub-line);
+  --color-line-strong:    var(--hub-line-strong);
+  --color-accent:         var(--hub-amber);
+  --color-accent-bright:  var(--hub-amber-bright);
+  --color-accent-dim:     var(--hub-amber-dim);
+  --color-accent-deep:    var(--hub-amber-deep);
+  --color-accent-glow:    var(--hub-amber-glow);
+  --color-accent-soft:    color-mix(in srgb, var(--hub-amber) 10%, var(--hub-bg-2));
+  --color-accent-ink:     color-mix(in srgb, var(--hub-amber) 80%, #000000);
+  --color-accent-contrast: var(--hub-bg-4);
+  --color-secondary:      var(--hub-cyan);
+  --color-secondary-dim:  var(--hub-cyan-dim);
+  --color-secondary-glow: var(--hub-cyan-glow);
+  --color-ok:     var(--hub-green);
+  --color-warn:   #a04010;
+  --color-danger: var(--hub-red);
+}
+:root[data-mode="dark"] {
   --color-ok:     #34d399;
   --color-warn:   #fbbf24;
   --color-danger: #f87171;
-  --grain-opacity: 0.08;
-  --grain-blend:   screen;
+  --color-accent-contrast: #000000;
 }
 
-/* BeigeBoard light — warm parchment paper, BB's reading identity */
-:root[data-theme="light"] {
-  --accent-base:      #c8391a;
-  --accent-secondary: #3a5c78;
-  --color-paper:      #ede2c8;
-  --color-paper-2:    #e4d5b0;
-  --color-card:       #f5ead4;
-  --color-card-2:     #ead9bb;
-  --color-ink:        #1c1408;
-  --color-muted:      #6b5038;
-  --color-faint:      #9c8060;
-  --color-line:       #c8ae88;
-  --color-line-strong:#b09a72;
-  --color-accent:        color-mix(in srgb, var(--accent-base) 85%, #000);
-  --color-accent-bright: var(--accent-base);
-  --color-accent-dim:    color-mix(in srgb, var(--accent-base) 65%, #000);
-  --color-accent-deep:   color-mix(in srgb, var(--accent-base) 38%, #000);
-  --color-accent-glow:   color-mix(in srgb, var(--accent-base) 20%, transparent);
-  --color-accent-soft:   color-mix(in srgb, var(--accent-base) 10%, var(--color-card));
-  --color-accent-ink:    color-mix(in srgb, var(--accent-base) 80%, #000);
-  --color-accent-contrast: #fff;
-  --color-secondary:      var(--accent-secondary);
-  --color-secondary-dim:  color-mix(in srgb, var(--accent-secondary) 70%, #000);
-  --color-secondary-glow: color-mix(in srgb, var(--accent-secondary) 20%, transparent);
-  --color-ok:     #15803d;
-  --color-warn:   #b45309;
-  --color-danger: #b91c1c;
-  --grain-opacity: 0.04;
-  --grain-blend:   multiply;
-}
-
-/* Base typography */
+/* ── Base typography ──────────────────────────────────────────────────── */
 html, body { color-scheme: light; }
-html[data-theme="dark"] { color-scheme: dark; }
+html[data-mode="dark"] { color-scheme: dark; }
 body { background: var(--color-paper); color: var(--color-ink); }
 
 /* ── Hover bridges ───────────────────────────────────────────────────── */
 .task-row, .day-chip, .event-chip {
   transition: background 0.12s, filter 0.12s, opacity 0.12s;
 }
-.task-row:hover { background: var(--hover-bg, transparent); }
-.day-chip:hover { opacity: 0.78; }
+.task-row:hover  { background: var(--hover-bg, transparent); }
+.day-chip:hover  { opacity: 0.78; }
 .event-chip:hover { filter: brightness(0.92); }
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
-.btn-action  { transition: background 0.15s, transform 0.1s, border-color 0.15s, color 0.15s; }
+.btn-action { transition: background 0.15s, transform 0.1s, border-color 0.15s, color 0.15s; }
 .btn-action:active { transform: translateY(1px); }
 
-/* ── Progress bar (legacy non-VU bars) ───────────────────────────────── */
+/* ── Progress bar ────────────────────────────────────────────────────── */
 .progress-fill { transition: width 0.9s cubic-bezier(0.16, 1, 0.3, 1); }
 
-/* ── Scrollbars (subtle) ─────────────────────────────────────────────── */
-*::-webkit-scrollbar { width: 8px; height: 8px; }
+/* ── Scrollbars ──────────────────────────────────────────────────────── */
+*::-webkit-scrollbar       { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: rgba(120, 90, 50, 0.18); }
-*::-webkit-scrollbar-thumb:hover { background: rgba(120, 90, 50, 0.35); }
+*::-webkit-scrollbar-thumb { background: var(--hub-line-strong); }
+*::-webkit-scrollbar-thumb:hover { background: var(--hub-amber-dim); }

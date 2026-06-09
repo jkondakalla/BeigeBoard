@@ -1,5 +1,9 @@
 {
   "compilerOptions": {
+    "paths": {
+      "@design":   ["../Design"],
+      "@design/*": ["../Design/*"]
+    },
     "target": "ES2020",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],

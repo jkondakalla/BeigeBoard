@@ -13,7 +13,7 @@ const STATIC_DIR = process.env.STATIC_DIR || path.join(__dirname, '..', 'dist');
 const SHELL_URL  = (process.env.SHELL_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 /* RSA public key from jkos-auth — used by jkosAuth middleware */
-const JKOS_AUTH_PUBLIC_KEY = process.env.JKOS_AUTH_PUBLIC_KEY || '';
+const JKOS_AUTH_PUBLIC_KEY = (process.env.JKOS_AUTH_PUBLIC_KEY || '').trim();
 const JKOS_AUTH_URL        = process.env.JKOS_AUTH_URL        || 'https://auth.jkos.net';
 const JKOS_AUTH_ISSUER     = process.env.JKOS_AUTH_ISSUER     || 'jkos-auth';
 
@@ -33,6 +33,7 @@ const MS_GRAPH     = 'https://graph.microsoft.com/v1.0';
 const LAZUROS_URL           = (process.env.LAZUROS_URL || 'http://localhost:8080').replace(/\/$/, '');
 const LAZUROS_TOKEN         = process.env.LAZUROS_TOKEN         || '';
 const LAZUROS_DEFAULT_MODEL = process.env.LAZUROS_DEFAULT_MODEL || 'llama3.2';
+const BB_AI_ENABLED         = process.env.BB_AI_ENABLED === 'true';
 
 /* ── Database ──────────────────────────────────────────────────────────── */
 const db = new Database(DB_PATH);
@@ -514,9 +515,13 @@ const PUBLIC_PATHS = [
   '/api/auth/outlook',    // initiates Outlook Calendar OAuth
 ];
 
+if (!JKOS_AUTH_PUBLIC_KEY && process.env.NODE_ENV === 'production') {
+  console.error('[boot] FATAL: JKOS_AUTH_PUBLIC_KEY is not set in production. Refusing to start.');
+  process.exit(1);
+}
 const authMiddleware = JKOS_AUTH_PUBLIC_KEY
   ? jkosAuth({ publicKey: JKOS_AUTH_PUBLIC_KEY, issuer: JKOS_AUTH_ISSUER })
-  : (req, _res, next) => { req.user = { sub: 1, role: 'admin' }; next(); }; // dev fallback
+  : (req, _res, next) => { req.user = { sub: 1, role: 'admin' }; next(); }; // dev fallback (non-prod only)
 
 app.use((req, res, next) => {
   if (PUBLIC_PATHS.some(p => req.path === p)) return next();
@@ -810,6 +815,7 @@ app.post('/api/calendar/icloud/sync', async (req, res) => {
 
 /* ── AI endpoint ───────────────────────────────────────────────────────── */
 app.post('/api/ai/parse-task', async (req, res) => {
+  if (!BB_AI_ENABLED) return res.status(503).json({ error: 'AI parsing is not enabled on this instance.' });
   try {
     const { text, today } = req.body;
     if (!text?.trim()) return res.status(400).json({ error: 'text is required' });

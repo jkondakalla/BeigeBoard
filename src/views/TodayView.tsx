@@ -134,6 +134,8 @@ function NextCard({ item, items, onSelect, onToggle }: any) {
   )
 }
 
+const AI_ENABLED = (import.meta.env.VITE_BB_AI_ENABLED as string) === 'true'
+
 function EmptyDay({ onAdd, today }: any) {
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState('')
@@ -196,6 +198,7 @@ function EmptyDay({ onAdd, today }: any) {
               padding: '6px 2px',
             }}
           />
+          {AI_ENABLED && (
           <button
             onClick={handleAI}
             disabled={aiLoading}
@@ -209,6 +212,7 @@ function EmptyDay({ onAdd, today }: any) {
               cursor: aiLoading ? 'wait' : 'pointer', opacity: aiLoading ? 0.6 : 1,
             }}
           >{aiLoading ? '…' : '✦ AI'}</button>
+          )}
           <button onClick={handle} className="btn-action" style={{
             background: 'var(--color-accent)', color: 'var(--color-paper)', border: 'none',
             fontFamily: FONT_BODY, fontSize: 11, letterSpacing: '0.14em',

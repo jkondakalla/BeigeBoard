@@ -18,9 +18,9 @@ import { WeekView } from './views/WeekView'
 import { CalendarView } from './views/CalendarView'
 import { TasksView } from './views/TasksView'
 
-// Set dark mode before React hydrates to prevent flash
-if (!document.documentElement.hasAttribute('data-theme')) {
-  document.documentElement.setAttribute('data-theme', 'dark')
+// Set paper mode before React hydrates to prevent flash
+if (!document.documentElement.hasAttribute('data-mode')) {
+  document.documentElement.setAttribute('data-mode', 'paper')
 }
 
 const DEFAULT_API_URL  = import.meta.env.VITE_API_URL ?? ''
